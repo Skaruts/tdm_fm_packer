@@ -1,6 +1,6 @@
 # FM Packer
 
-A command line python script to make packaging Dark Mod missions a bit more convenient. You simply run it and it creates the `.pk4` for you, automatically excluding unwanted files.
+A command-line script to make packaging Dark Mod missions a bit more convenient. You simply run it and it creates the `.pk4` for you, automatically excluding unwanted files.
 
 
 ## Usage
