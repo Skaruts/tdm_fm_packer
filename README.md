@@ -35,15 +35,19 @@ prefabs/
 # anything else is interpreted as a file filter
 
 .blend       
-bak          
+bak
+some_file.txt
 ```
 
 Don't use `*`, as it's not supported. These filters are simply substrings that every dir/file name is tested against: if it has any of these substrings in it, then it's excluded. It's probably better to include dots for file extensions, though.
 
+Some files and folders are automatically excluded by the script: `.log`, `.dat`, `.py`, `.pk4`, `.zip`, `.7z`, `.rar`, and the `__pycache__` directory if it exists.
+
+
 ## Options
 
 #### `-c` or `--check` 
-Lists files without packaging, which can be useful to check if your filters are correct. 
+Lists files without packaging, which can be useful to check if the filters are correct. 
 ```
 fmpak . -c
 ```
@@ -57,6 +61,7 @@ This is mostly intended for debugging purposes. It turns off usage of `py7zr` in
 ```
 fmpak . -q
 ```
+There's currently no support for specifying compression levels.
 
 
 
