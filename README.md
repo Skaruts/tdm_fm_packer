@@ -2,6 +2,7 @@
 
 A command-line script to make packaging Dark Mod missions a bit more convenient. You simply run it and it creates the `.pk4` for you, automatically excluding unwanted files.
 
+Requires either 'py7zr' or 'zipfile' ('zipfile' should be in python's standard library)
 
 ## Usage
 
