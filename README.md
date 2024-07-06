@@ -16,6 +16,8 @@ python fmpak.py .
 ```
 ###### NOTE: On some windows versions you should be able to ommit the `python` call and the file extension, and abreviate to just `fmpak .`. Below I will be using the abbreviated syntax just for clarity. Use whichever works in your system.
 
+The script is intended to be able to run from outside the FM folder, but I haven't tested this properly yet, so I can't guarantee it will work.
+
 You can print help using `-h` or `--help`:
 ```
 fmpak -h
