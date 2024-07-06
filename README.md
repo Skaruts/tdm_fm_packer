@@ -1,6 +1,6 @@
 # FM Packer
 
-A command line script to make packaging Dark Mod missions a bit more convenient. You simply run it, and it creates the `.pk4` for you, automatically excluding unwanted files.
+A command line python script to make packaging Dark Mod missions a bit more convenient. You simply run it and it creates the `.pk4` for you, automatically excluding unwanted files.
 
 
 ## Usage
@@ -14,7 +14,7 @@ Run `fmpak.py` with the path to your fm. If `fmpak.py` is inside the FM folder, 
 ```
 python fmpak.py .
 ```
-###### NOTE: On some windows versions you should be able to ommit the `python` call and the file extension, and abreviate to just `fmpak .` Below I will use the abbreviated syntax just for clarity. Use whichever works in your system.
+###### NOTE: On some windows versions you should be able to ommit the `python` call and the file extension, and abreviate to just `fmpak .`. Below I will be using the abbreviated syntax just for clarity. Use whichever works in your system.
 
 You can print help using `-h` or `--help`:
 ```
