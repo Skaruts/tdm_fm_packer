@@ -2,8 +2,6 @@
 
 A command-line python script for packing The Dark Mod missions. It creates the `pk4` for you, automatically excluding any files and folders you specify in a `.pkignore` file.
 
-The script depends on [py7zr](https://pypi.org/project/py7zr/), although you can turn if off, in which case it will use `zipfile`, which is faster (and python standard) but the `pk4` will be larger.
-
 FM Packer will check `startingmap.txt` or `tdm_mapsequence.txt` to see which maps are used by the mission, and will automatically exclude all other map files.
 
 ## Using FM Packer
@@ -70,12 +68,3 @@ Some files and folders are automatically excluded by the script: `.log`, `.dat`,
 	```
 	fmpak . -c:maps
 	```
-
-- #### `-q` or `--quick`
-	This is mostly intended for debugging purposes. It turns off usage of `py7zr` in favor of `zipfile`, to make packaging faster.
-	```
-	fmpak . -q
-	```
-	There's currently no support for specifying compression levels.
-
-	(If for some reason you wish to permanently turn off `py7zr`, switch the `USE_7Z` variable to `False` in the script.)
