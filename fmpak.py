@@ -11,7 +11,7 @@ import sys
 import os
 
 
-VERSION = 0.1
+VERSION = 0.2
 CWD = os.getcwd()   # current working directory
 PKIGNORE = ".pkignore"
 
@@ -115,6 +115,7 @@ def run_tasks():
 def pack_fm(fm_path):
 	_, tail = os.path.split(fm_path)
 	zipname = tail + ".pk4"
+	print(f"\nPacking '{zipname}'... \n")
 
 	if USE_7Z:
 		import py7zr as zipf
