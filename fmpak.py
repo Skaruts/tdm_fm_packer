@@ -48,7 +48,7 @@ PRINT_HELP    = "print_help"
 # make sure to exclude any meta stuff
 # also exlude maps, they're handled separately
 ignored_folders = set(["__pycache__", "maps"])
-ignored_files = set([PKIGNORE, ".log", ".dat", ".py", ".pk4", ".zip", ".7z", ".rar"])
+ignored_files = set([PKIGNORE, ".log", ".dat", ".py", ".pyc", ".pk4", ".zip", ".7z", ".rar"])
 
 def load_ignore_file(fm_path):
 	file_path = os.path.join(fm_path, PKIGNORE)
