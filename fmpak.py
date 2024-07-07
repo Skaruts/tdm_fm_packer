@@ -156,7 +156,7 @@ def parse_cli_args():
 	argc = len(sys.argv)
 
 	if argc == 0:
-		error("no args (TODO: help listing)")
+		usage_error("no fm path provided")
 
 	i = 0
 	while i < argc:
