@@ -9,6 +9,8 @@
 
 import sys
 import os
+import time
+
 
 
 VERSION = 0.2
@@ -115,7 +117,9 @@ def run_tasks():
 def pack_fm(fm_path):
 	_, tail = os.path.split(fm_path)
 	zipname = tail + ".pk4"
+
 	print(f"\nPacking '{zipname}'... \n")
+	t1 = time.time()
 
 	if USE_7Z:
 		import py7zr as zipf
@@ -126,7 +130,11 @@ def pack_fm(fm_path):
 		with zipf.ZipFile(zipname, 'w', zipf.ZIP_DEFLATED, compresslevel=9) as f:
 			pack_files(fm_path, f)
 
-	print(f"\nFinished packing '{zipname}' \n    {dir_count} dirs, {file_count} files")
+	t2 = time.time()
+	total_time = "{:.1f}".format(t2-t1)
+
+	print(f"\nFinished packing '{zipname}'")
+	print(f"    {dir_count} dirs, {file_count} files, {total_time} seconds")
 
 
 def pack_files(fm_path, f):
