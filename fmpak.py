@@ -1,13 +1,9 @@
 """
 		FM Packer for The Dark Mod
 
-	Requires either 'py7zr' or 'zipfile' ('zipfile' may be in std, but I'm not sure)
-
-
-
-	TODO
-		- check if this works in the system PATH
-		- maybe report the time taken to pack
+	Quick Usage Reference:
+		- create a .pkignore file in your FM folder, specifying what to exclude
+		- run 'python fmpak.py .'
 """
 
 
@@ -41,6 +37,8 @@ CHECK_VERSION = "check_version"
 CHECK_FILES   = "check_files"
 PACK_FILES    = "pack_files"
 PRINT_HELP    = "print_help"
+
+
 
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 # 		initialize ignore lists
@@ -104,7 +102,6 @@ def run_tasks():
 			load_ignore_file(fm_path)
 			validate_fm_path()
 			pack_fm(fm_path)
-			get_map_files(fm_path)
 		elif t.type == CHECK_VERSION:
 			print_version()
 		elif t.type == CHECK_FILES:
@@ -296,7 +293,7 @@ def print_quick_help():
 
 
 def print_help():
-	help_str = f"""
+	print(f"""
     FM Packer for The Dark Mod - version {VERSION}"
 
     Usage:
@@ -315,9 +312,7 @@ def print_help():
         -h / --help       display helpful information
 
         -q / --quick      use quickest compression level
-	"""
-
-	print(help_str)
+	""")
 
 
 def print_version():
