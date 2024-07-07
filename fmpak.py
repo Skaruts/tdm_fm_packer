@@ -13,7 +13,7 @@ import time
 import zipfile as zipf
 
 
-VERSION = 0.3
+VERSION = 0.4
 CWD = os.getcwd()   # current working directory
 PKIGNORE = ".pkignore"
 
@@ -40,8 +40,7 @@ PRINT_HELP    = "print_help"
 # 		initialize ignore lists
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 # make sure to exclude any meta stuff
-# also exlude maps, they're handled separately
-ignored_folders = set(["__pycache__", "maps"])
+ignored_folders = set(["__pycache__"])
 ignored_files = set([PKIGNORE, "bak", ".log", ".dat", ".py", ".pyc", ".pk4", ".zip", ".7z", ".rar"])
 
 def load_ignore_file(fm_path):
@@ -107,10 +106,14 @@ def run_tasks():
 		elif t.type == PRINT_HELP:
 			print_help()
 
+# ignore the maps folder
+def add_maps_directory_to_ignore_list(fm_name):
+	ignored_folders.add(os.path.join(fm_name, "maps"))
 
 def pack_fm(fm_path):
-	_, tail = os.path.split(fm_path)
-	zipname = tail + ".pk4"
+	_, fm_name = os.path.split(fm_path)
+	zipname = fm_name + ".pk4"
+	add_maps_directory_to_ignore_list(fm_name)
 
 	print(f"\nPacking '{zipname}'... \n")
 	t1 = time.time()
@@ -317,8 +320,11 @@ def print_version():
 
 def list_files(task):
 	global file_count, dir_count
-	dir = task.arg
 
+	_, fm_name = os.path.split(fm_path)
+	add_maps_directory_to_ignore_list(fm_name)
+
+	dir = task.arg
 	if dir == "":
 		for root, dirs, files in os.walk(fm_path):
 			if should_ignore(root, ignored_folders): continue
