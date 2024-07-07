@@ -10,18 +10,13 @@
 import sys
 import os
 import time
-
+import zipfile as zipf
 
 
 VERSION = 0.2
 CWD = os.getcwd()   # current working directory
 PKIGNORE = ".pkignore"
 
-
-# this is intended for debugging, but you can change this to choose whether to
-# use 'py7zr' or 'zipfile' (or use '-q' command line argument to turn this off)
-# 'py7zr' uses 7zip, and has better compression ratio, but is also slower
-USE_7Z = True
 
 fm_path = ""
 file_count = 0
@@ -32,7 +27,6 @@ tasks = []
 VALID_CHECK_ARGS   = ["-c", "--check"]
 VALID_VERSION_ARGS = ["-v", "--version"]
 VALID_HELP_ARGS    = ["-h", "--help"]
-VALID_QUICK_ARGS   = ["-q", "--quick"]
 
 # task names
 CHECK_VERSION = "check_version"
@@ -121,14 +115,9 @@ def pack_fm(fm_path):
 	print(f"\nPacking '{zipname}'... \n")
 	t1 = time.time()
 
-	if USE_7Z:
-		import py7zr as zipf
-		with zipf.SevenZipFile(zipname, 'w') as f:
-			pack_files(fm_path, f)
-	else:
-		import zipfile as zipf
-		with zipf.ZipFile(zipname, 'w', zipf.ZIP_DEFLATED, compresslevel=9) as f:
-			pack_files(fm_path, f)
+
+	with zipf.ZipFile(zipname, 'w', zipf.ZIP_DEFLATED, compresslevel=9) as f:
+		pack_files(fm_path, f)
 
 	t2 = time.time()
 	total_time = "{:.1f}".format(t2-t1)
@@ -158,7 +147,6 @@ def pack_files(fm_path, f):
 
 
 def parse_cli_args():
-	global USE_7Z
 	argv = sys.argv
 
 	del argv[0] # the first entry is this program's name
@@ -182,7 +170,6 @@ def parse_cli_args():
 
 			if   command in VALID_VERSION_ARGS: add_task(CHECK_VERSION, args)
 			elif command in VALID_CHECK_ARGS:   add_task(CHECK_FILES, args)
-			elif command in VALID_QUICK_ARGS:   USE_7Z = False
 			elif command in VALID_HELP_ARGS:    add_task(PRINT_HELP, args)
 			else:
 				usage_error(f"unknown argument {string}")
