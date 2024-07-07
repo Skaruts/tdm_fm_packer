@@ -13,7 +13,7 @@ import time
 import zipfile as zipf
 
 
-VERSION = 0.2
+VERSION = 0.3
 CWD = os.getcwd()   # current working directory
 PKIGNORE = ".pkignore"
 
