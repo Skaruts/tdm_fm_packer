@@ -50,7 +50,7 @@ Don't use `*`, as it's not supported. These filters are simply substrings that e
 
 Some files and folders are automatically excluded by the script:
 - any file with `bak` in it (backup files)
-- file extensions .log`, `.dat`, `.py`, `.pyc`, `.pk4`, `.zip`, `.7z`, `.rar`
+- file extensions `.log`, `.dat`, `.py`, `.pyc`, `.pk4`, `.zip`, `.7z`, `.rar`
 - the `__pycache__` directory if it exists.
 
 
