@@ -13,7 +13,7 @@ import time
 import zipfile as zipf
 
 
-VERSION = 0.4
+VERSION = "0.4.1"
 CWD = os.getcwd()   # current working directory
 PKIGNORE = ".pkignore"
 
@@ -347,9 +347,13 @@ def list_files(task):
 			print(filename)
 			file_count += 1
 	else:
-		dir = os.path.join(fm_path, dir)
+		dirpath = os.path.join(fm_path, dir)
+
+		if not os.path.exists(dirpath):
+			error(f"invalid directory '{dir}'" )
+
 		# print("dir", dir, fm_path)
-		for root, dirs, files in os.walk(dir):
+		for root, dirs, files in os.walk(dirpath):
 			if should_ignore(root, ignored_folders): continue
 			for file in files:
 				filename = os.path.join(root, file).replace(fm_path, '')[1:]
