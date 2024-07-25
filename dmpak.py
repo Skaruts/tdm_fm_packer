@@ -1,9 +1,9 @@
 """
-		FM Packer for The Dark Mod
+		TDM Packer for The Dark Mod
 
 	Quick Usage Reference:
 		- create a .pkignore file in your FM folder, specifying what to exclude
-		- run 'python fmpak.py .'
+		- run 'python dmpak.py .' from inside your FM folder
 """
 
 
@@ -301,18 +301,18 @@ def set_fm_path(string):
 def print_quick_help():
 	print(f"""
     Usage:
-        fmpak <fm_path> <options>
+        dmpak <fm_path> <options>
 
-    Use 'fmpak -h' for more information.
+    Use 'dmpak -h' for more information.
 	""")
 
 
 def print_help():
 	print(f"""
-    FM Packer for The Dark Mod - version {VERSION}"
+    TDM Packer for The Dark Mod - version {VERSION}"
 
     Usage:
-        fmpak <fm_path> <options>
+        dmpak <fm_path> <options>
 
         'fm_path' can be a dot '.', for current directory.
 
@@ -322,7 +322,7 @@ def print_help():
                           can be provided using '-c:dir' (no spaces), to only
                           list the files inside 'dir'.
 
-        -v / --version    print out the version of FM Packer
+        -v / --version    print out the version of TDM Packer
 
         -h / --help       display helpful information
 
@@ -331,7 +331,7 @@ def print_help():
 
 
 def print_version():
-	print(f"FM Packer version {VERSION}")
+	print(f"TDM Packer version {VERSION}")
 
 
 def list_files(task):
