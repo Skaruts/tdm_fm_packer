@@ -1,10 +1,10 @@
-# FM Packer
+# TDM Packer
 
 A command-line python script for packing The Dark Mod missions. It creates the `pk4` for you, automatically excluding any files and folders you specify in a `.pkignore` file.
 
-FM Packer will check `startingmap.txt` or `tdm_mapsequence.txt` to see which maps are used by the mission, and will automatically exclude all other map files.
+This tool will also check `startingmap.txt` or `tdm_mapsequence.txt` to see which maps are used by the mission, and will automatically exclude all other map files.
 
-## Using FM Packer
+## Using TDM Packer
 Usage syntax looks like this
 ```
 fmpak <fm_path> <options>
@@ -30,7 +30,7 @@ fmpak -h
 
 ## The `.pkignore` file
 
-By default FM Packer will pack everything in your FM, so if you need to exclude certain files or folders you can create a `.pkignore` file inside your FM folder, specifying what to exclude. This file works similar to `.gitignore`, but limited.
+By default TDM Packer will pack everything in your FM folder, but you can create a `.pkignore` file inside your FM folder, and specify what should be excluded. This file works similarly to a `.gitignore` file, but very limited.
 
 ```py
 # suports comments
@@ -46,7 +46,9 @@ todo
 some_file.txt
 ```
 
-Don't use `*`, as it's not supported. These filters are simply substrings that every dir/file name is tested against: if it has any of these substrings in it, then it's excluded. It's probably better to include dots for file extensions, though.
+Don't use `*`, as it's not supported. These filters are simply substrings that every dir/file name is tested against: if it has any of these substrings in it, then it's excluded. It's better to include dots for file extensions.
+
+This is case-sensitive. 
 
 Some files and folders are automatically excluded by the script:
 - any file with `bak` in it (backup files)
@@ -60,7 +62,7 @@ Some files and folders are automatically excluded by the script:
 	Displays usage information.
 
 - #### `-v` or `--version`
-	Displays the version of the FM Packer you're running.
+	Displays the version of the TDM Packer you're running.
 
 - #### `-c` or `--check`
 	Lists files without packaging, which can be useful to check if the filters are correct.
