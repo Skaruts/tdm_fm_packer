@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 		TDM Packer for The Dark Mod
 
