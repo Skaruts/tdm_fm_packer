@@ -86,15 +86,15 @@ def load_ignore_file(fm_path):
 #       TASK
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 class Task:
-	type = ""
+	kind = ""
 	arg = ""
-	def __init__(self, type, arg=""):
-		self.type = type
+	def __init__(self, kind, arg=""):
+		self.kind = kind
 		if arg:
 			self.arg = arg
 
-def add_task(type, arg=""):
-	tasks.append(Task(type, arg))
+def add_task(kind, arg=""):
+	tasks.append(Task(kind, arg))
 
 
 
@@ -109,17 +109,17 @@ def main():
 def run_tasks():
 	# print("running tasks", tasks)
 	for t in tasks:
-		if t.type == PACK_FILES:
+		if t.kind == PACK_FILES:
 			load_ignore_file(fm_path)
 			validate_fm_path()
 			pack_fm(fm_path)
-		elif t.type == CHECK_VERSION:
+		elif t.kind == CHECK_VERSION:
 			print_version()
-		elif t.type == CHECK_FILES:
+		elif t.kind == CHECK_FILES:
 			validate_fm_path()
 			load_ignore_file(fm_path)
 			list_files(t)
-		elif t.type == PRINT_HELP:
+		elif t.kind == PRINT_HELP:
 			print_help()
 
 # ignore the maps folder
