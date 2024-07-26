@@ -7,25 +7,22 @@ This tool will also check `startingmap.txt` or `tdm_mapsequence.txt` to see whic
 ## Using TDM Packer
 Usage syntax looks like this
 ```
-dmpak <fm_path> <options>
+dmpak.py <fm_path> <options>
 ```
 
 Run `dmpak.py` with the path to your fm. If you're invoking `dmpak.py` from inside the FM folder, you can use a `.` for *"current directory"*, like this:
 ```
-python dmpak.py .
+dmpak.py .
 ```
-
-###### NOTE: On some systems you can ommit the `python` call and the file extension, and abreviate to just `dmpak .`. Below I will be using the abbreviated syntax just for clarity. Use whichever works in your system.
-
 The path can be absolute, or relative to the current directory.
 
-On Windows you can also add the location of this script to your system PATH, so you can run it from any FM folder. I don't know how this works on Mac and Linux.
+On Windows you can also add the location of this script to your system PATH, so you can run it from any FM folder. I don't quite know how this works on Mac and Linux.
 
 The script will abort if it doesn't detect `darkmod.txt` in the folder you run it from, so make sure you run it from inside an FM folder.
 
 You can view help information using `-h` or `--help`:
 ```
-dmpak -h
+dmpak.py -h
 ```
 
 ## The `.pkignore` file
@@ -46,9 +43,9 @@ todo
 some_file.txt
 ```
 
-Don't use `*`, as it's not supported. These filters are simply substrings that every dir/file name is tested against: if it has any of these substrings in it, then it's excluded. It's better to include dots for file extensions.
+Don't use `*`, as it's not supported. These filters are merely substrings that every dir/file name is tested against: if it has any of these substrings in it, then it's excluded. It's better to include dots for file extensions, though.
 
-This is case-sensitive. 
+The filtering system is case-sensitive.
 
 Some files and folders are automatically excluded by the script:
 - any file with `bak` in it (backup files)
@@ -67,9 +64,9 @@ Some files and folders are automatically excluded by the script:
 - #### `-c` or `--check`
 	Lists files without packaging, which can be useful to check if the filters are correct.
 	```
-	dmpak . -c
+	dmpak.py . -c
 	```
 	You can also specify a directory, to list only the files inside it (don't use spaces):
 	```
-	dmpak . -c:maps
+	dmpak.py . -c:maps
 	```
