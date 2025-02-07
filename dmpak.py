@@ -8,220 +8,50 @@
 		- run 'python dmpak.py .' from inside your FM folder
 """
 
-
 import sys
 import os
 import time
 import zipfile as zipf
+import argparse as ap
 
 
-VERSION = "0.4.2"
+echo = print  # just to differentiate from debug prints
+
+
+VERSION = "0.5"
 CWD = os.getcwd()   # current working directory
-PKIGNORE = ".pkignore"
+PKIGNORE_FILENAME = ".pkignore"
+MODFILE_FILENAME = "darkmod.txt"
 
-
-fm_path = ""
+# class Data:
+fm_path    = ""
 file_count = 0
-dir_count = 0
-tasks = []
-
-# valid command line args
-VALID_CHECK_ARGS   = ["-c", "--check"]
-VALID_VERSION_ARGS = ["-v", "--version"]
-VALID_HELP_ARGS    = ["-h", "--help"]
-
-# task names
-CHECK_VERSION = "check_version"
-CHECK_FILES   = "check_files"
-PACK_FILES    = "pack_files"
-PRINT_HELP    = "print_help"
+dir_count  = 0
 
 
-
-#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
-# 		initialize ignore lists
-#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 # make sure to exclude any meta stuff
-ignored_folders = set([
-	"__pycache__",
-	".git"
-])
+ignored_folders = set(["__pycache__", ".git"])
 ignored_files = set([
-	PKIGNORE,
-	"bak",
-	".log",
-	".dat",
-	".py",
-	".pyc",
-	".pk4",
-	".zip",
-	".7z",
-	".rar",
-	".gitignore",
-	".gitattributes"
+	PKIGNORE_FILENAME, ".lin", "bak", ".log", ".dat", ".py", ".pyc",
+	".pk4", ".zip", ".7z", ".rar", ".gitignore", ".gitattributes"
 ])
 
-def load_ignore_file(fm_path):
-	file_path = os.path.join(fm_path, PKIGNORE)
-
-	if not os.path.exists(file_path):
-		return
-
-	with open(file_path, 'r') as file:
-		for line in file:
-			if '#' in line: line = line[:line.index('#')]
-			line = line.strip()
-			if line == "": continue
-
-			if   line.startswith('/'):  ignored_folders.add(line[1:])
-			elif line.startswith('./'): ignored_folders.add(line[2:])
-			elif line.endswith('/'):    ignored_folders.add(line[:-1])
-			else:
-				ignored_files.add(line)
-
-	# print(ignored_folders)
-	# print(ignored_files)
-
 
 
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
-#       TASK
+# 		utils
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
-class Task:
-	kind = ""
-	arg = ""
-	def __init__(self, kind, arg=""):
-		self.kind = kind
-		if arg:
-			self.arg = arg
-
-def add_task(kind, arg=""):
-	tasks.append(Task(kind, arg))
-
-
-
-#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
-# 	Main stuff
-#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
-def main():
-	parse_cli_args()
-	run_tasks()
-
-
-def run_tasks():
-	# print("running tasks", tasks)
-	for t in tasks:
-		if t.kind == PACK_FILES:
-			load_ignore_file(fm_path)
-			validate_fm_path()
-			pack_fm(fm_path)
-		elif t.kind == CHECK_VERSION:
-			print_version()
-		elif t.kind == CHECK_FILES:
-			validate_fm_path()
-			load_ignore_file(fm_path)
-			list_files(t)
-		elif t.kind == PRINT_HELP:
-			print_help()
-
-# ignore the maps folder
-def add_maps_directory_to_ignore_list(fm_name):
-	ignored_folders.add(os.path.join(fm_name, "maps"))
-
-def pack_fm(fm_path):
-	_, fm_name = os.path.split(fm_path)
-	zipname = fm_name + ".pk4"
-	add_maps_directory_to_ignore_list(fm_name)
-
-	print(f"\nPacking '{zipname}'... \n")
-	t1 = time.time()
-
-
-	with zipf.ZipFile(zipname, 'w', zipf.ZIP_DEFLATED, compresslevel=9) as f:
-		pack_files(fm_path, f)
-
-	t2 = time.time()
-	total_time = "{:.1f}".format(t2-t1)
-
-	print(f"\nFinished packing '{zipname}'")
-	print(f"    {dir_count} dirs, {file_count} files, {total_time} seconds")
-
-
-def pack_files(fm_path, f):
-	global file_count, dir_count
-	for root, dirs, files in os.walk(fm_path):
-		if should_ignore(root, ignored_folders): continue
-		for file in files:
-			filename = os.path.join(root, file).replace(fm_path, '')[1:]
-			if should_ignore(filename, ignored_files): continue
-			print(filename)
-			f.write(filename)#, os.path.relpath(filename, os.path.join(filename, '..')))
-			file_count += 1
-		dir_count += 1
-
-	map_files = get_map_files(fm_path)
-	for file in map_files:
-		filename = file.replace(fm_path, '')[1:]
-		print(filename)
-		f.write(filename)
-		file_count += 1
-
-
-def parse_cli_args():
-	argv = sys.argv
-
-	del argv[0] # the first entry is this program's name
-	argc = len(sys.argv)
-
-	if argc == 0:
-		usage_error("no fm path provided")
-
-	i = 0
-	while i < argc:
-		string = argv[i]
-
-		if string.startswith('-'):
-			command = string
-			args = None
-			if ':' in string:
-				idx = string.index(':')
-				command = string[:idx]
-				args = string[idx+1:]
-			# print(command, args)
-
-			if   command in VALID_VERSION_ARGS: add_task(CHECK_VERSION, args)
-			elif command in VALID_CHECK_ARGS:   add_task(CHECK_FILES, args)
-			elif command in VALID_HELP_ARGS:    add_task(PRINT_HELP, args)
-			else:
-				usage_error(f"unknown argument {string}")
-		else:
-			set_fm_path(string)
-		i += 1
-
-	if len(tasks) == 0 and fm_path != "":
-		add_task(PACK_FILES)
-
-
-
-#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
-# 	utils
-#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
-def error(message):
-	print("ERROR:", message)
-	exit()
-
-def usage_error(message):
-	print(message)
-	print_quick_help()
+def print_error(message):
+	echo("ERROR:", message)
 	exit()
 
 
 def validate_fm_path():
 	if not os.path.isdir(fm_path):
-		error(f"invalid path '{fm_path}'")
+		print_error(f"invalid path '{fm_path}'")
 
-	if not os.path.isfile(os.path.join(fm_path, "darkmod.txt")):
-		error(f"no 'darkmod.txt' found at path '{fm_path}'")
+	if not os.path.isfile(os.path.join(fm_path, MODFILE_FILENAME)):
+		print_error(f"no '{MODFILE_FILENAME}' found at path '{fm_path}'")
 
 	# print("fm_path:", fm_path)
 
@@ -291,7 +121,6 @@ def get_map_filenames(fm_path):
 def set_fm_path(string):
 	global fm_path
 	fm_path = string
-
 	if fm_path == '.':               fm_path = CWD
 	elif not os.path.isabs(fm_path): fm_path = os.path.join(CWD, fm_path)
 
@@ -301,74 +130,120 @@ def set_fm_path(string):
 #       TASK FUNCTIONS
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 def print_quick_help():
-	print(f"""
+	echo(f"""
     Usage:
-        dmpak <fm_path> <options>
+        {os.path.basename(__file__)} <fm_path> <options>
 
-    Use 'dmpak -h' for more information.
-	""")
-
-
-def print_help():
-	print(f"""
-    TDM Packer for The Dark Mod - version {VERSION}"
-
-    Usage:
-        dmpak <fm_path> <options>
-
-        'fm_path' can be a dot '.', for current directory.
-
-    Options:
-        -c / --check      list all files in 'fm_path', without zipping.
-                          A specific directory, relative to the 'fm_path',
-                          can be provided using '-c:dir' (no spaces), to only
-                          list the files inside 'dir'.
-
-        -v / --version    print out the version of TDM Packer
-
-        -h / --help       display helpful information
-
-        -q / --quick      use quickest compression level
+    Use '{os.path.basename(__file__)} -h' for more information.
 	""")
 
 
 def print_version():
-	print(f"TDM Packer version {VERSION}")
+	echo(f"TDM Packer version {VERSION}")
 
 
-def list_files(task):
+# ignore the maps folder
+def add_maps_directory_to_ignore_list(fm_name):
+	ignored_folders.add(os.path.join(fm_name, "maps"))
+
+
+def pack_fm(fm_path):
+	_, fm_name = os.path.split(fm_path)
+	zipname = fm_name + ".pk4"
+	add_maps_directory_to_ignore_list(fm_name)
+
+	echo(f"\nPacking '{zipname}'... \n")
+	t1 = time.time()
+
+
+	with zipf.ZipFile(zipname, 'w', zipf.ZIP_DEFLATED, compresslevel=9) as f:
+		pack_files(fm_path, f)
+
+	t2 = time.time()
+	total_time = "{:.1f}".format(t2-t1)
+
+	echo(f"\nFinished packing '{zipname}'")
+	echo(f"    {dir_count} dirs, {file_count} files, {total_time} seconds")
+
+
+def pack_files(fm_path, f):
 	global file_count, dir_count
+	for root, dirs, files in os.walk(fm_path):
+		if should_ignore(root, ignored_folders): continue
+		for file in files:
+			filename = os.path.join(root, file).replace(fm_path, '')[1:]
+			if should_ignore(filename, ignored_files): continue
+			echo(filename)
+			f.write(filename)#, os.path.relpath(filename, os.path.join(filename, '..')))
+			file_count += 1
+		dir_count += 1
+
+	map_files = get_map_files(fm_path)
+	for file in map_files:
+		filename = file.replace(fm_path, '')[1:]
+		echo(filename)
+		f.write(filename)
+		file_count += 1
+
+
+def load_ignore_file(fm_path):
+	file_path = os.path.join(fm_path, PKIGNORE_FILENAME)
+
+	if not os.path.exists(file_path):
+		return
+
+	with open(file_path, 'r') as file:
+		for line in file:
+			if '#' in line: line = line[:line.index('#')]
+			line = line.strip()
+			if line == "": continue
+
+			if   line.startswith('/'):  ignored_folders.add(line[1:])
+			elif line.startswith('./'): ignored_folders.add(line[2:])
+			elif line.endswith('/'):    ignored_folders.add(line[:-1])
+			else:
+				ignored_files.add(line)
+
+	# print(ignored_folders)
+	# print(ignored_files)
+
+
+
+
+def check_files():
+	global file_count, dir_count
+
 
 	_, fm_name = os.path.split(fm_path)
 	add_maps_directory_to_ignore_list(fm_name)
 
-	dir = task.arg
+	dir = args.check
 	if dir == "":
 		for root, dirs, files in os.walk(fm_path):
 			if should_ignore(root, ignored_folders): continue
 			for file in files:
 				filename = os.path.join(root, file).replace(fm_path, '')[1:]
 				if should_ignore(filename, ignored_files): continue
-				print(filename)
+				echo(filename)
 				file_count += 1
 			dir_count += 1
 
 		map_files = get_map_files(fm_path)
 		for file in map_files:
 			filename = file.replace(fm_path, '')[1:]
-			print(filename)
+			echo(filename)
 			file_count += 1
 	elif dir == "maps":
 		map_files = get_map_files(fm_path)
 		for file in map_files:
 			filename = file.replace(fm_path, '')[1:]
-			print(filename)
+			echo(filename)
 			file_count += 1
 	else:
 		dirpath = os.path.join(fm_path, dir)
 
 		if not os.path.exists(dirpath):
-			error(f"invalid directory '{dir}'" )
+			print_error(f"invalid directory '{dir}'" )
 
 		# print("dir", dir, fm_path)
 		for root, dirs, files in os.walk(dirpath):
@@ -376,20 +251,44 @@ def list_files(task):
 			for file in files:
 				filename = os.path.join(root, file).replace(fm_path, '')[1:]
 				if should_ignore(filename, ignored_files): continue
-				print(filename)
+				echo(filename)
 				file_count += 1
 			dir_count += 1
 
 	# print(ignored_folders)
 	# print(ignored_files)
 
-	print(f"\n    {dir_count} dirs, {file_count} files")
+	echo(f"\n    {dir_count} dirs, {file_count} files")
 
 
 
 
 
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
-# 	run
+# 		run
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
-main()
+# keep this check here in case this script may be called from another tool
+if __name__ == "__main__":
+	parser = ap.ArgumentParser()
+	group = parser.add_mutually_exclusive_group()
+
+	# parser.usage = ""
+
+	parser.add_argument("--version",          action="version",    version=f"TDM Packer v{VERSION}")
+	group.add_argument("-qh", "--quick_help", action="store_true",            help="show a shortened help message")
+	parser.add_argument("path",                type=str,            help="the path (relative or absolute) to the target fm")
+	parser.add_argument("-c", "--check",      type=str, const='.', nargs='?', help="list files to include in pk4 within 'CHECK' without packing them, where 'CHECK' is a relative path")
+
+	args = parser.parse_args()
+
+	if args.quick_help:
+		print_quick_help()
+		exit()
+
+	set_fm_path(args.path)
+	validate_fm_path()
+	load_ignore_file(fm_path)
+
+	if args.check: check_files()
+	else:          pack_fm(fm_path)
+
