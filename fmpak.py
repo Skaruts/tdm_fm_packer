@@ -7,8 +7,6 @@
 		- create a .pkignore file in your FM folder, specifying what to exclude
 		- run 'python fmpak.py .' from inside your FM folder
 """
-import types
-import typing
 
 import sys
 import os
@@ -148,39 +146,6 @@ def load_pkignore():
 				ignored_files.add(line)
 
 
-def get_pkignore_csv():
-	file_path = os.path.join(data.fm_path, PKIGNORE_FILENAME)
-	if not os.path.exists(file_path):
-		return ""
-
-	res = ""
-	i = 0
-	with open(file_path, 'r') as f:
-		for line in f:
-			if '#' in line: line = line[:line.index('#')]
-			line = line.strip()
-			if line == "": continue
-
-			if i > 0: res += ', ' + line
-			else:     res += line
-			i += 1
-
-	return res
-
-
-def create_pk_ignore(csv):
-	if ',' in csv:
-		vals = csv.replace(' ', '').split(',')
-	else:
-		vals = csv.split()
-
-	content = '\n'.join(vals)
-
-	file_path = os.path.join(data.fm_path, PKIGNORE_FILENAME)
-	with open(file_path, 'w') as f:
-		f.write(content)
-
-
 
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 #       TASK FUNCTIONS
@@ -275,6 +240,39 @@ def check_files():
 	echo(f"\n    {data.dir_count} dirs, {data.file_count} files")
 
 
+def get_pkignore_csv():
+	file_path = os.path.join(data.fm_path, PKIGNORE_FILENAME)
+	if not os.path.exists(file_path):
+		return ""
+
+	res = ""
+	i = 0
+	with open(file_path, 'r') as f:
+		for line in f:
+			if '#' in line: line = line[:line.index('#')]
+			line = line.strip()
+			if line == "": continue
+
+			if i > 0: res += ', ' + line
+			else:     res += line
+			i += 1
+
+	return res
+
+
+def create_pk_ignore(csv):
+	if ',' in csv:
+		vals = csv.replace(' ', '').split(',')
+	else:
+		vals = csv.split()
+
+	content = '\n'.join(vals)
+
+	file_path = os.path.join(data.fm_path, PKIGNORE_FILENAME)
+	with open(file_path, 'w') as f:
+		f.write(content)
+
+
 
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 # 		run
@@ -282,7 +280,6 @@ def check_files():
 # keep this check here in case this script may be called from another tool
 if __name__ == "__main__":
 	parser = ap.ArgumentParser()
-	# group = parser.add_mutually_exclusive_group()
 
 	# parser.usage = "" # TODO
 
