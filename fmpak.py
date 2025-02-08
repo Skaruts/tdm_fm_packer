@@ -17,7 +17,7 @@ import argparse as ap
 
 echo = print  # just to differentiate from debug prints
 
-VERSION = "0.5"
+VERSION = "0.5.1"
 PKIGNORE_FILENAME = ".pkignore"
 MODFILE_FILENAME = "darkmod.txt"
 
