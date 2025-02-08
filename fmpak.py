@@ -280,12 +280,18 @@ def check_files():
 # keep this check here in case this script may be called from another tool
 if __name__ == "__main__":
 	parser = ap.ArgumentParser()
-	group = parser.add_mutually_exclusive_group()
+	# group = parser.add_mutually_exclusive_group()
 
 	# parser.usage = "" # TODO
 
 	parser.add_argument("--version",          action="version",    version=f"FM Packer v{VERSION} for The Dark Mod")
-	group.add_argument("-qh", "--quick_help", action="store_true",            help="show a shortened help message")
+	parser.add_argument("-qh", "--quick_help", action="store_true", help="show a shortened help message")
+
+	args = parser.parse_args()
+	if args.quick_help:
+		print_quick_help()
+		exit()
+
 	parser.add_argument("path",               type=str,            help="the path (relative or absolute) to the target fm")
 	parser.add_argument("-c", "--check",      type=str, const='.', nargs='?', help="list files to include in pk4 within 'CHECK' without packing them, where 'CHECK' is a relative path")
 	parser.add_argument("--pk_set",           type=str, help="creates a .pkignore file with the given comma- or space-separated filters")
@@ -301,10 +307,6 @@ if __name__ == "__main__":
 
 	if args.pk_get:
 		echo(".pkignore:", get_pkignore_csv())
-		exit()
-
-	if args.quick_help:
-		print_quick_help()
 		exit()
 
 	set_fm_path(args.path)
