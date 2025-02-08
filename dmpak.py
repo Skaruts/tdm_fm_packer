@@ -82,7 +82,7 @@ def get_files_in_dir(dir_path:str, filters:list = []):
 
 def should_ignore(path, filters):
 	for string in filters:
-		if string in path.lower():
+		if string in path:
 			return True
 	return False
 
