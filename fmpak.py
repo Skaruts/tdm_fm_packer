@@ -146,39 +146,6 @@ def load_pkignore():
 				ignored_files.add(line)
 
 
-def get_pkignore_csv():
-	file_path = os.path.join(data.fm_path, PKIGNORE_FILENAME)
-	if not os.path.exists(file_path):
-		return ""
-
-	res = ""
-	i = 0
-	with open(file_path, 'r') as f:
-		for line in f:
-			if '#' in line: line = line[:line.index('#')]
-			line = line.strip()
-			if line == "": continue
-
-			if i > 0: res += ', ' + line
-			else:     res += line
-			i += 1
-
-	return res
-
-
-def create_pk_ignore(csv):
-	if ',' in csv:
-		vals = csv.replace(' ', '').split(',')
-	else:
-		vals = csv.split()
-
-	content = '\n'.join(vals)
-
-	file_path = os.path.join(data.fm_path, PKIGNORE_FILENAME)
-	with open(file_path, 'w') as f:
-		f.write(content)
-
-
 
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 #       TASK FUNCTIONS
@@ -273,6 +240,39 @@ def check_files():
 	echo(f"\n    {data.dir_count} dirs, {data.file_count} files")
 
 
+def get_pkignore_csv():
+	file_path = os.path.join(data.fm_path, PKIGNORE_FILENAME)
+	if not os.path.exists(file_path):
+		return ""
+
+	res = ""
+	i = 0
+	with open(file_path, 'r') as f:
+		for line in f:
+			if '#' in line: line = line[:line.index('#')]
+			line = line.strip()
+			if line == "": continue
+
+			if i > 0: res += ', ' + line
+			else:     res += line
+			i += 1
+
+	return res
+
+
+def create_pk_ignore(csv):
+	if ',' in csv:
+		vals = csv.replace(' ', '').split(',')
+	else:
+		vals = csv.split()
+
+	content = '\n'.join(vals)
+
+	file_path = os.path.join(data.fm_path, PKIGNORE_FILENAME)
+	with open(file_path, 'w') as f:
+		f.write(content)
+
+
 
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 # 		run
@@ -280,18 +280,20 @@ def check_files():
 # keep this check here in case this script may be called from another tool
 if __name__ == "__main__":
 	parser = ap.ArgumentParser()
-	group = parser.add_mutually_exclusive_group()
 
 	# parser.usage = "" # TODO
 
 	parser.add_argument("--version",          action="version",    version=f"FM Packer v{VERSION} for The Dark Mod")
-	group.add_argument("-qh", "--quick_help", action="store_true",            help="show a shortened help message")
-	parser.add_argument("path",               type=str,            help="the path (relative or absolute) to the target fm")
+	parser.add_argument("-qh", "--quick_help", action="store_true", help="show a shortened help message")
+	parser.add_argument("path",               type=str, const=None, nargs='?', help="the path (relative or absolute) to the target fm")
 	parser.add_argument("-c", "--check",      type=str, const='.', nargs='?', help="list files to include in pk4 within 'CHECK' without packing them, where 'CHECK' is a relative path")
 	parser.add_argument("--pk_set",           type=str, help="creates a .pkignore file with the given comma- or space-separated filters")
 	parser.add_argument("--pk_get",           action="store_true", help="shows the .pkignore content as csv filters")
 
 	args = parser.parse_args()
+	if args.quick_help:
+		print_quick_help()
+		exit()
 
 	if args.pk_set:
 		echo("Previous .pkignore:", get_pkignore_csv())
@@ -303,9 +305,8 @@ if __name__ == "__main__":
 		echo(".pkignore:", get_pkignore_csv())
 		exit()
 
-	if args.quick_help:
-		print_quick_help()
-		exit()
+	if not args.path:
+		error("A path must be provided.")
 
 	set_fm_path(args.path)
 	validate_fm_path()
