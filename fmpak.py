@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
 """
-		TDM Packer for The Dark Mod
+		FM Packer for The Dark Mod
 
 	Quick Usage Reference:
 		- create a .pkignore file in your FM folder, specifying what to exclude
-		- run 'python dmpak.py .' from inside your FM folder
+		- run 'python fmpak.py .' from inside your FM folder
 """
 
 import sys
@@ -122,20 +122,6 @@ def get_map_filenames():
 		return map_names
 
 
-
-
-#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
-#       TASK FUNCTIONS
-#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
-def print_quick_help():
-	echo(f"""
-    Usage:
-        {os.path.basename(__file__)} <fm_path> <options>
-
-    Use '{os.path.basename(__file__)} -h' for more information.
-	""")
-
-
 # ignore the maps folder
 def add_maps_directory_to_ignore_list(fm_name):
 	ignored_folders.add(os.path.join(fm_name, "maps"))
@@ -161,6 +147,19 @@ def load_ignore_file():
 
 	# print(ignored_folders)
 	# print(ignored_files)
+
+
+
+#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
+#       TASK FUNCTIONS
+#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
+def print_quick_help():
+	echo(f"""
+    Usage:
+        {os.path.basename(__file__)} <fm_path> <options>
+
+    Use '{os.path.basename(__file__)} -h' for more information.
+	""")
 
 
 def pack_fm():
@@ -248,8 +247,6 @@ def check_files():
 
 
 
-
-
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 # 		run
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
@@ -260,7 +257,7 @@ if __name__ == "__main__":
 
 	# parser.usage = ""
 
-	parser.add_argument("--version",          action="version",    version=f"TDM Packer v{VERSION}")
+	parser.add_argument("--version",          action="version",    version=f"FM Packer for The Dark Mod - v{VERSION}")
 	group.add_argument("-qh", "--quick_help", action="store_true",            help="show a shortened help message")
 	parser.add_argument("path",                type=str,            help="the path (relative or absolute) to the target fm")
 	parser.add_argument("-c", "--check",      type=str, const='.', nargs='?', help="list files to include in pk4 within 'CHECK' without packing them, where 'CHECK' is a relative path")

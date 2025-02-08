@@ -1,18 +1,18 @@
-# TDM Packer
+# FM Packer
 
 A command-line python script for packing The Dark Mod missions. It creates the `pk4` for you, automatically excluding any files and folders you specify in a `.pkignore` file.
 
 This tool will also check `startingmap.txt` or `tdm_mapsequence.txt` to see which maps are used by the mission, and will automatically exclude all other map files.
 
-## Using TDM Packer
+## Using FM Packer
 Usage syntax looks like this
 ```
-dmpak.py <fm_path> <options>
+fmpak.py <fm_path> <options>
 ```
 
-Run `dmpak.py` with the path to your fm. If you're invoking `dmpak.py` from inside the FM folder, you can use a `.` for *"current directory"*, like this:
+Run `fmpak.py` with the path to your fm. If you're invoking `fmpak.py` from inside the FM folder, you can use a `.` for *"current directory"*, like this:
 ```
-dmpak.py .
+fmpak.py .
 ```
 The path can be absolute, or relative to the current directory.
 
@@ -22,12 +22,12 @@ The script will abort if it doesn't detect `darkmod.txt` in the folder you run i
 
 You can view help information using `-h` or `--help`:
 ```
-dmpak.py -h
+fmpak.py -h
 ```
 
 ## The `.pkignore` file
 
-By default TDM Packer will pack everything in your FM folder, but you can create a `.pkignore` file inside your FM folder, and specify what should be excluded. This file works similarly to a `.gitignore` file, but very limited.
+By default FM Packer will pack everything in your FM folder, but you can create a `.pkignore` file inside your FM folder, and specify what should be excluded. This file works similarly to a `.gitignore` file, but very limited.
 
 ```py
 # suports comments
@@ -59,14 +59,14 @@ Some files and folders are automatically excluded by the script:
 	Displays usage information.
 
 - #### `-v` or `--version`
-	Displays the version of the TDM Packer you're running.
+	Displays the version of the FM Packer you're running.
 
 - #### `-c` or `--check`
 	Lists files without packaging, which can be useful to check if the filters are correct.
 	```
-	dmpak.py . -c
+	fmpak.py . -c
 	```
 	You can also specify a directory, to list only the files inside it (don't use spaces):
 	```
-	dmpak.py . -c:maps
+	fmpak.py . -c:maps
 	```
