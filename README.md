@@ -31,7 +31,6 @@ By default FM Packer will pack everything in your FM directory, but you can crea
 # suports comments
 
 /sources     # folders must start or end with a '/'
-/savegames
 prefabs/
 
 # anything else is interpreted as a file filter
@@ -47,7 +46,7 @@ The filtering is case-sensitive. Don't use `*`, as it's not supported. These fil
 Some files and folders are automatically excluded by the script:
 - any file with `bak` in it (backup files)
 - file extensions `.lin`, .log`, `.dat`, `.py`, `.pyc`, `.pk4`, `.zip`, `.7z`, `.rar`, `.gitignore`, `.gitattributes`
-- the `.git` and `__pycache__` directories, if they exist.
+- the `savegames`, `.git` and `__pycache__` directories, if they exist.
 
 
 ## Options
@@ -73,7 +72,7 @@ Some files and folders are automatically excluded by the script:
 - #### `--pk_set`
 	Creates a .pkignore file with the given comma- or space-separated filters - may be needed to enclose them in quotes.
 	```
-	fmpak . --pk_set ".blend, some_file.txt"
+	fmpak . --pk_set "sources/, .blend, some_file.txt"
 	```
 - #### `--pk_get`
 	Shows the current content of the .pkignore file as csv filters.

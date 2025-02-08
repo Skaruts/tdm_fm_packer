@@ -29,7 +29,7 @@ class data: # to avoid using 'global'
 
 
 # make sure to exclude any meta stuff
-ignored_folders = set(["__pycache__", ".git"])
+ignored_folders = set(["savegames", "__pycache__", ".git"])
 ignored_files = set([
 	PKIGNORE_FILENAME, ".lin", "bak", ".log", ".dat", ".py", ".pyc",
 	".pk4", ".zip", ".7z", ".rar", ".gitignore", ".gitattributes"
