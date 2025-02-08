@@ -17,16 +17,15 @@ import argparse as ap
 
 echo = print  # just to differentiate from debug prints
 
-
 VERSION = "0.5"
-CWD = os.getcwd()   # current working directory
 PKIGNORE_FILENAME = ".pkignore"
 MODFILE_FILENAME = "darkmod.txt"
 
-# class Data:
-fm_path    = ""
-file_count = 0
-dir_count  = 0
+
+class data: # to avoid using 'global'
+	fm_path    = ""
+	file_count = 0
+	dir_count  = 0
 
 
 # make sure to exclude any meta stuff
@@ -41,19 +40,25 @@ ignored_files = set([
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 # 		utils
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
-def print_error(message):
+def error(message):
 	echo("ERROR:", message)
 	exit()
 
 
+def set_fm_path(path):
+	data.fm_path = path
+	if path == '.':
+		data.fm_path = os.getcwd()
+	elif not os.path.isabs(path):
+		data.fm_path = os.path.join(os.getcwd(), data.fm_path)
+
+
 def validate_fm_path():
-	if not os.path.isdir(fm_path):
-		print_error(f"invalid path '{fm_path}'")
+	if not os.path.isdir(data.fm_path):
+		error(f"invalid path '{data.fm_path}'")
 
-	if not os.path.isfile(os.path.join(fm_path, MODFILE_FILENAME)):
-		print_error(f"no '{MODFILE_FILENAME}' found at path '{fm_path}'")
-
-	# print("fm_path:", fm_path)
+	if not os.path.isfile(os.path.join(data.fm_path, MODFILE_FILENAME)):
+		error(f"no '{MODFILE_FILENAME}' found at path '{data.fm_path}'")
 
 
 def get_files_in_dir(dir_path:str, filters:list = []):
@@ -62,7 +67,6 @@ def get_files_in_dir(dir_path:str, filters:list = []):
 	for name in os.listdir(dir_path):
 		filepath = os.path.join(dir_path, name)#.encode("utf-8")
 		_, file_ext = os.path.splitext(filepath)
-		# print(filepath)
 		if os.path.isfile(filepath):
 			is_valid = True
 			for filter in filters:
@@ -83,11 +87,11 @@ def should_ignore(path, filters):
 	return False
 
 
-def get_map_files(fm_path):
-	map_names = get_map_filenames(fm_path)
+def get_map_files():
+	map_names = get_map_filenames()
 
 	map_files = []
-	files = get_files_in_dir(os.path.join( fm_path, "maps"))
+	files = get_files_in_dir(os.path.join( data.fm_path, "maps"))
 
 	for f in files:
 		_, tail = os.path.split(f)
@@ -99,16 +103,16 @@ def get_map_files(fm_path):
 	return map_files
 
 
-def get_map_filenames(fm_path):
+def get_map_filenames():
 	map_names = list()
 
-	startmap = os.path.join(fm_path, "startingmap.txt")
+	startmap = os.path.join(data.fm_path, "startingmap.txt")
 	if os.path.isfile(startmap):
 		with open(startmap, 'r') as file:
 			map_names = [ file.readlines()[0].strip() ]
 		return map_names
 
-	mapseq = os.path.join(fm_path, "tdm_mapsequence.txt")
+	mapseq = os.path.join(data.fm_path, "tdm_mapsequence.txt")
 	if os.path.isfile(mapseq):
 		with open(mapseq, 'r') as file:
 			for line in file:
@@ -117,12 +121,6 @@ def get_map_filenames(fm_path):
 				map_names.append(line.strip()[ line.index(':')+1 :])
 		return map_names
 
-
-def set_fm_path(string):
-	global fm_path
-	fm_path = string
-	if fm_path == '.':               fm_path = CWD
-	elif not os.path.isabs(fm_path): fm_path = os.path.join(CWD, fm_path)
 
 
 
@@ -147,8 +145,8 @@ def add_maps_directory_to_ignore_list(fm_name):
 	ignored_folders.add(os.path.join(fm_name, "maps"))
 
 
-def pack_fm(fm_path):
-	_, fm_name = os.path.split(fm_path)
+def pack_fm():
+	fm_name = os.path.basename(data.fm_path)
 	zipname = fm_name + ".pk4"
 	add_maps_directory_to_ignore_list(fm_name)
 
@@ -157,37 +155,36 @@ def pack_fm(fm_path):
 
 
 	with zipf.ZipFile(zipname, 'w', zipf.ZIP_DEFLATED, compresslevel=9) as f:
-		pack_files(fm_path, f)
+		pack_files(f)
 
 	t2 = time.time()
 	total_time = "{:.1f}".format(t2-t1)
 
 	echo(f"\nFinished packing '{zipname}'")
-	echo(f"    {dir_count} dirs, {file_count} files, {total_time} seconds")
+	echo(f"    {data.dir_count} dirs, {data.file_count} files, {total_time} seconds")
 
 
-def pack_files(fm_path, f):
-	global file_count, dir_count
-	for root, dirs, files in os.walk(fm_path):
+def pack_files(f):
+	for root, dirs, files in os.walk(data.fm_path):
 		if should_ignore(root, ignored_folders): continue
 		for file in files:
-			filename = os.path.join(root, file).replace(fm_path, '')[1:]
+			filename = os.path.join(root, file).replace(data.fm_path, '')[1:]
 			if should_ignore(filename, ignored_files): continue
 			echo(filename)
 			f.write(filename)#, os.path.relpath(filename, os.path.join(filename, '..')))
-			file_count += 1
-		dir_count += 1
+			data.file_count += 1
+		data.dir_count += 1
 
-	map_files = get_map_files(fm_path)
+	map_files = get_map_files()
 	for file in map_files:
-		filename = file.replace(fm_path, '')[1:]
+		filename = file.replace(data.fm_path, '')[1:]
 		echo(filename)
 		f.write(filename)
-		file_count += 1
+		data.file_count += 1
 
 
-def load_ignore_file(fm_path):
-	file_path = os.path.join(fm_path, PKIGNORE_FILENAME)
+def load_ignore_file():
+	file_path = os.path.join(data.fm_path, PKIGNORE_FILENAME)
 
 	if not os.path.exists(file_path):
 		return
@@ -211,54 +208,51 @@ def load_ignore_file(fm_path):
 
 
 def check_files():
-	global file_count, dir_count
-
-
-	_, fm_name = os.path.split(fm_path)
+	fm_name = os.path.basename(data.fm_path)
 	add_maps_directory_to_ignore_list(fm_name)
 
 	dir = args.check
 	if dir == "":
-		for root, dirs, files in os.walk(fm_path):
+		for root, dirs, files in os.walk(data.fm_path):
 			if should_ignore(root, ignored_folders): continue
 			for file in files:
-				filename = os.path.join(root, file).replace(fm_path, '')[1:]
+				filename = os.path.join(root, file).replace(data.fm_path, '')[1:]
 				if should_ignore(filename, ignored_files): continue
 				echo(filename)
-				file_count += 1
-			dir_count += 1
+				data.file_count += 1
+			data.dir_count += 1
 
-		map_files = get_map_files(fm_path)
+		map_files = get_map_files()
 		for file in map_files:
-			filename = file.replace(fm_path, '')[1:]
+			filename = file.replace(data.fm_path, '')[1:]
 			echo(filename)
-			file_count += 1
+			data.file_count += 1
 	elif dir == "maps":
-		map_files = get_map_files(fm_path)
+		map_files = get_map_files()
 		for file in map_files:
-			filename = file.replace(fm_path, '')[1:]
+			filename = file.replace(data.fm_path, '')[1:]
 			echo(filename)
-			file_count += 1
+			data.file_count += 1
 	else:
-		dirpath = os.path.join(fm_path, dir)
+		dirpath = os.path.join(data.fm_path, dir)
 
 		if not os.path.exists(dirpath):
-			print_error(f"invalid directory '{dir}'" )
+			error(f"invalid directory '{dir}'" )
 
-		# print("dir", dir, fm_path)
+		# print("dir", dir, data.fm_path)
 		for root, dirs, files in os.walk(dirpath):
 			if should_ignore(root, ignored_folders): continue
 			for file in files:
-				filename = os.path.join(root, file).replace(fm_path, '')[1:]
+				filename = os.path.join(root, file).replace(data.fm_path, '')[1:]
 				if should_ignore(filename, ignored_files): continue
 				echo(filename)
-				file_count += 1
-			dir_count += 1
+				data.file_count += 1
+			data.dir_count += 1
 
 	# print(ignored_folders)
 	# print(ignored_files)
 
-	echo(f"\n    {dir_count} dirs, {file_count} files")
+	echo(f"\n    {data.dir_count} dirs, {data.file_count} files")
 
 
 
@@ -287,8 +281,8 @@ if __name__ == "__main__":
 
 	set_fm_path(args.path)
 	validate_fm_path()
-	load_ignore_file(fm_path)
+	load_ignore_file()
 
 	if args.check: check_files()
-	else:          pack_fm(fm_path)
+	else:          pack_fm()
 
