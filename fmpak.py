@@ -282,7 +282,7 @@ if __name__ == "__main__":
 	parser = ap.ArgumentParser()
 	group = parser.add_mutually_exclusive_group()
 
-	# parser.usage = ""
+	# parser.usage = "" # TODO
 
 	parser.add_argument("--version",          action="version",    version=f"FM Packer v{VERSION} for The Dark Mod")
 	group.add_argument("-qh", "--quick_help", action="store_true",            help="show a shortened help message")
