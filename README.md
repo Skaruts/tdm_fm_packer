@@ -69,3 +69,14 @@ Some files and folders are automatically excluded by the script:
 	```
 	fmpak.py . -c guis/assets
 	```
+
+- #### `--pk_set`
+	Creates a .pkignore file with the given comma- or space-separated filters - may be needed to enclose them in quotes.
+	```
+	fmpak . --pk_set ".blend, some_file.txt"
+	```
+- #### `--pk_get`
+	Shows the current content of the .pkignore file as csv filters.
+	```
+	fmpak . --pk_get
+	```
