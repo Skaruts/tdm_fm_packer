@@ -7,6 +7,8 @@
 		- create a .pkignore file in your FM folder, specifying what to exclude
 		- run 'python fmpak.py .' from inside your FM folder
 """
+import types
+import typing
 
 import sys
 import os
@@ -286,18 +288,15 @@ if __name__ == "__main__":
 
 	parser.add_argument("--version",          action="version",    version=f"FM Packer v{VERSION} for The Dark Mod")
 	parser.add_argument("-qh", "--quick_help", action="store_true", help="show a shortened help message")
-
-	args = parser.parse_args()
-	if args.quick_help:
-		print_quick_help()
-		exit()
-
-	parser.add_argument("path",               type=str,            help="the path (relative or absolute) to the target fm")
+	parser.add_argument("path",               type=str, const=None, nargs='?', help="the path (relative or absolute) to the target fm")
 	parser.add_argument("-c", "--check",      type=str, const='.', nargs='?', help="list files to include in pk4 within 'CHECK' without packing them, where 'CHECK' is a relative path")
 	parser.add_argument("--pk_set",           type=str, help="creates a .pkignore file with the given comma- or space-separated filters")
 	parser.add_argument("--pk_get",           action="store_true", help="shows the .pkignore content as csv filters")
 
 	args = parser.parse_args()
+	if args.quick_help:
+		print_quick_help()
+		exit()
 
 	if args.pk_set:
 		echo("Previous .pkignore:", get_pkignore_csv())
@@ -308,6 +307,9 @@ if __name__ == "__main__":
 	if args.pk_get:
 		echo(".pkignore:", get_pkignore_csv())
 		exit()
+
+	if not args.path:
+		error("A path must be provided.")
 
 	set_fm_path(args.path)
 	validate_fm_path()
