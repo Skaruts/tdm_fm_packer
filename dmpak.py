@@ -25,7 +25,7 @@ MODFILE_FILENAME = "darkmod.txt"
 class data: # to avoid using 'global'
 	fm_path    = ""
 	file_count = 0
-	dir_count  = 0
+	dir_count  = -1  # -1 to compensate for path.walk counting with the root dir
 
 
 # make sure to exclude any meta stuff
@@ -91,7 +91,7 @@ def get_map_files():
 	map_names = get_map_filenames()
 
 	map_files = []
-	files = get_files_in_dir(os.path.join( data.fm_path, "maps"))
+	files = get_files_in_dir(os.path.join(data.fm_path, "maps"))
 
 	for f in files:
 		_, tail = os.path.split(f)
@@ -136,51 +136,9 @@ def print_quick_help():
 	""")
 
 
-def print_version():
-	echo(f"TDM Packer version {VERSION}")
-
-
 # ignore the maps folder
 def add_maps_directory_to_ignore_list(fm_name):
 	ignored_folders.add(os.path.join(fm_name, "maps"))
-
-
-def pack_fm():
-	fm_name = os.path.basename(data.fm_path)
-	zipname = fm_name + ".pk4"
-	add_maps_directory_to_ignore_list(fm_name)
-
-	echo(f"\nPacking '{zipname}'... \n")
-	t1 = time.time()
-
-
-	with zipf.ZipFile(zipname, 'w', zipf.ZIP_DEFLATED, compresslevel=9) as f:
-		pack_files(f)
-
-	t2 = time.time()
-	total_time = "{:.1f}".format(t2-t1)
-
-	echo(f"\nFinished packing '{zipname}'")
-	echo(f"    {data.dir_count} dirs, {data.file_count} files, {total_time} seconds")
-
-
-def pack_files(f):
-	for root, dirs, files in os.walk(data.fm_path):
-		if should_ignore(root, ignored_folders): continue
-		for file in files:
-			filename = os.path.join(root, file).replace(data.fm_path, '')[1:]
-			if should_ignore(filename, ignored_files): continue
-			echo(filename)
-			f.write(filename)#, os.path.relpath(filename, os.path.join(filename, '..')))
-			data.file_count += 1
-		data.dir_count += 1
-
-	map_files = get_map_files()
-	for file in map_files:
-		filename = file.replace(data.fm_path, '')[1:]
-		echo(filename)
-		f.write(filename)
-		data.file_count += 1
 
 
 def load_ignore_file():
@@ -205,49 +163,83 @@ def load_ignore_file():
 	# print(ignored_files)
 
 
+def pack_fm():
+	fm_name = os.path.basename(data.fm_path)
+	zipname = fm_name + ".pk4"
+	add_maps_directory_to_ignore_list(fm_name)
+
+	echo(f"\nPacking '{zipname}'... \n")
+	t1 = time.time()
+
+	with zipf.ZipFile(zipname, 'w', zipf.ZIP_DEFLATED, compresslevel=9) as f:
+		pack_files(f)
+
+	t2 = time.time()
+	total_time = "{:.1f}".format(t2-t1)
+
+	echo(f"\nFinished packing '{zipname}'")
+	echo(f"    {data.dir_count} dirs, {data.file_count} files, {total_time} seconds")
+
+
+def pack_files(f):
+	for root, dirs, files in os.walk(data.fm_path):
+		if should_ignore(root, ignored_folders): continue
+		data.dir_count += 1
+		for file in files:
+			filename = os.path.join(root, file).replace(data.fm_path, '')[1:]
+			if should_ignore(filename, ignored_files): continue
+			echo(filename)
+			f.write(filename)#, os.path.relpath(filename, os.path.join(filename, '..')))
+			data.file_count += 1
+
+	map_files = get_map_files()
+	data.dir_count += 1
+	for file in map_files:
+		filename = file.replace(data.fm_path, '')[1:]
+		echo(filename)
+		f.write(filename)
+		data.file_count += 1
 
 
 def check_files():
-	fm_name = os.path.basename(data.fm_path)
-	add_maps_directory_to_ignore_list(fm_name)
-
 	dir = args.check
-	if dir == "":
-		for root, dirs, files in os.walk(data.fm_path):
-			if should_ignore(root, ignored_folders): continue
-			for file in files:
-				filename = os.path.join(root, file).replace(data.fm_path, '')[1:]
-				if should_ignore(filename, ignored_files): continue
-				echo(filename)
-				data.file_count += 1
-			data.dir_count += 1
+	if dir.startswith("./"):
+		dir = dir.replace("./", '')
 
+	if dir == "maps":
 		map_files = get_map_files()
-		for file in map_files:
-			filename = file.replace(data.fm_path, '')[1:]
-			echo(filename)
-			data.file_count += 1
-	elif dir == "maps":
-		map_files = get_map_files()
+		data.dir_count = 0
 		for file in map_files:
 			filename = file.replace(data.fm_path, '')[1:]
 			echo(filename)
 			data.file_count += 1
 	else:
-		dirpath = os.path.join(data.fm_path, dir)
+		if dir == '.':
+			dirpath = data.fm_path
+			fm_name = os.path.basename(dirpath)
+			add_maps_directory_to_ignore_list(fm_name)
+		else:
+			dirpath = os.path.join(data.fm_path, dir)
 
 		if not os.path.exists(dirpath):
 			error(f"invalid directory '{dir}'" )
 
-		# print("dir", dir, data.fm_path)
 		for root, dirs, files in os.walk(dirpath):
 			if should_ignore(root, ignored_folders): continue
 			for file in files:
-				filename = os.path.join(root, file).replace(data.fm_path, '')[1:]
-				if should_ignore(filename, ignored_files): continue
-				echo(filename)
+				rel_filepath = os.path.join(root, file).replace(dirpath, '')[1:]
+				if should_ignore(rel_filepath, ignored_files): continue
+				echo(rel_filepath)
 				data.file_count += 1
 			data.dir_count += 1
+
+		if dir == '.':
+			map_files = get_map_files()
+			data.dir_count += 1
+			for file in map_files:
+				filename = file.replace(data.fm_path, '')[1:]
+				echo(filename)
+				data.file_count += 1
 
 	# print(ignored_folders)
 	# print(ignored_files)
