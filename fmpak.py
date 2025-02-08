@@ -145,8 +145,6 @@ def load_pkignore():
 			else:
 				ignored_files.add(line)
 
-	# print(ignored_folders)
-	# print(ignored_files)
 
 def get_pkignore_csv():
 	file_path = os.path.join(data.fm_path, PKIGNORE_FILENAME)
@@ -168,7 +166,17 @@ def get_pkignore_csv():
 	return res
 
 
+def create_pk_ignore(csv):
+	if ',' in csv:
+		vals = csv.replace(' ', '').split(',')
+	else:
+		vals = csv.split()
 
+	content = '\n'.join(vals)
+
+	file_path = os.path.join(data.fm_path, PKIGNORE_FILENAME)
+	with open(file_path, 'w') as f:
+		f.write(content)
 
 
 
@@ -262,25 +270,7 @@ def check_files():
 				echo(filename)
 				data.file_count += 1
 
-	# print(ignored_folders)
-	# print(ignored_files)
-
 	echo(f"\n    {data.dir_count} dirs, {data.file_count} files")
-
-
-def create_pk_ignore(csv):
-	if ',' in csv:
-		vals = csv.replace(' ', '').split(',')
-	else:
-		vals = csv.split()
-
-	content = '\n'.join(vals)
-
-	file_path = os.path.join(data.fm_path, PKIGNORE_FILENAME)
-	with open(file_path, 'w') as f:
-		f.write(content)
-
-
 
 
 
@@ -294,7 +284,7 @@ if __name__ == "__main__":
 
 	# parser.usage = ""
 
-	parser.add_argument("--version",          action="version",    version=f"FM Packer for The Dark Mod - v{VERSION}")
+	parser.add_argument("--version",          action="version",    version=f"FM Packer v{VERSION} for The Dark Mod")
 	group.add_argument("-qh", "--quick_help", action="store_true",            help="show a shortened help message")
 	parser.add_argument("path",               type=str,            help="the path (relative or absolute) to the target fm")
 	parser.add_argument("-c", "--check",      type=str, const='.', nargs='?', help="list files to include in pk4 within 'CHECK' without packing them, where 'CHECK' is a relative path")
@@ -312,7 +302,6 @@ if __name__ == "__main__":
 	if args.pk_get:
 		echo(".pkignore:", get_pkignore_csv())
 		exit()
-
 
 	if args.quick_help:
 		print_quick_help()
