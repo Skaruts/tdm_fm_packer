@@ -21,12 +21,17 @@ VERSION = "0.5.1"
 PKIGNORE_FILENAME = ".pkignore"
 MODFILE_FILENAME = "darkmod.txt"
 
+class FileGroup:
+	def __init__(self, files, dir_count, file_count):
+		self.files      = files
+		self.dir_count  = dir_count
+		self.file_count = file_count
 
-class data: # to avoid using 'global'
-	fm_path    = ""
-	file_count = 0
-	dir_count  = -1  # -1 to compensate for path.walk counting with the root dir
-
+class mission: # data class to avoid using 'global'
+	path    = ""
+	name    = ""
+	included : FileGroup
+	excluded : FileGroup
 
 # make sure to exclude any meta stuff
 ignored_folders = set(["savegames", "__pycache__", ".git"])
@@ -34,6 +39,12 @@ ignored_files = set([
 	PKIGNORE_FILENAME, ".lin", "bak", ".log", ".dat", ".py", ".pyc",
 	".pk4", ".zip", ".7z", ".rar", ".gitignore", ".gitattributes"
 ])
+
+
+class MissionFile:
+	def __init__(self, fullpath, relpath):
+		self.fullpath = fullpath
+		self.relpath = relpath
 
 
 
@@ -45,20 +56,33 @@ def error(message):
 	exit()
 
 
-def set_fm_path(path):
-	data.fm_path = path
-	if path == '.':
-		data.fm_path = os.getcwd()
+def parse_path(dir):
+	path = dir
+
+	if   path.startswith("/"):   path = path[1:]
+	elif path.startswith("\\"):  path = path[1:]
+	elif path.startswith("./"):  path = path[2:]
+	elif path.startswith(".\\"): path = path[2:]
+
+	if dir == '.':
+		path = os.getcwd()
 	elif not os.path.isabs(path):
-		data.fm_path = os.path.join(os.getcwd(), data.fm_path)
+		path = os.path.join(os.getcwd(), path)
+
+	return path
+
+
+def set_fm_path(path):
+	mission.path = parse_path(path)
+	mission.name = os.path.basename(mission.path)
 
 
 def validate_fm_path():
-	if not os.path.isdir(data.fm_path):
-		error(f"invalid path '{data.fm_path}'")
+	if not os.path.isdir(mission.path):
+		error(f"invalid path '{mission.path}'")
 
-	if not os.path.isfile(os.path.join(data.fm_path, MODFILE_FILENAME)):
-		error(f"no '{MODFILE_FILENAME}' found at path '{data.fm_path}'")
+	if not os.path.isfile(os.path.join(mission.path, MODFILE_FILENAME)):
+		error(f"no '{MODFILE_FILENAME}' found at path '{mission.path}'")
 
 
 def get_files_in_dir(dir_path:str, filters:list = []):
@@ -87,32 +111,16 @@ def should_ignore(path, filters):
 	return False
 
 
-def get_map_files():
-	map_names = get_map_filenames()
-
-	map_files = []
-	files = get_files_in_dir(os.path.join(data.fm_path, "maps"))
-
-	for f in files:
-		_, tail = os.path.split(f)
-		for name in map_names:
-			if tail.startswith(name) and not should_ignore(tail, ignored_files):
-				map_files.append(f)
-				break
-
-	return map_files
-
-
-def get_map_filenames():
+def get_mapsequence_filenames():
 	map_names = list()
 
-	startmap = os.path.join(data.fm_path, "startingmap.txt")
+	startmap = os.path.join(mission.path, "startingmap.txt")
 	if os.path.isfile(startmap):
 		with open(startmap, 'r') as file:
 			map_names = [ file.readlines()[0].strip() ]
 		return map_names
 
-	mapseq = os.path.join(data.fm_path, "tdm_mapsequence.txt")
+	mapseq = os.path.join(mission.path, "tdm_mapsequence.txt")
 	if os.path.isfile(mapseq):
 		with open(mapseq, 'r') as file:
 			for line in file:
@@ -122,13 +130,8 @@ def get_map_filenames():
 		return map_names
 
 
-# ignore the maps folder
-def add_maps_directory_to_ignore_list(fm_name):
-	ignored_folders.add(os.path.join(fm_name, "maps"))
-
-
 def load_pkignore():
-	file_path = os.path.join(data.fm_path, PKIGNORE_FILENAME)
+	file_path = os.path.join(mission.path, PKIGNORE_FILENAME)
 
 	if not os.path.exists(file_path):
 		return
@@ -146,6 +149,58 @@ def load_pkignore():
 				ignored_files.add(line)
 
 
+def add_ignored_maps():
+	map_names = get_mapsequence_filenames()
+	print(map_names)
+	files = get_files_in_dir(os.path.join(mission.path, "maps"))
+
+	for f in files:
+		_, tail = os.path.split(f)
+		for name in map_names:
+			if tail.startswith(name): continue
+			ignored_files.add(tail)
+
+
+def gather_files():
+	inc, exc = [], []
+	num_inc_dirs, num_inc_files = -1, 0
+	num_exc_dirs, num_exc_files = -1, 0
+
+	add_ignored_maps()
+
+	for root, dirs, files in os.walk(mission.path):
+		included_folder = False
+		if should_ignore(root, ignored_folders):
+			num_exc_dirs += 1
+		else:
+			included_folder = True
+			num_inc_dirs += 1
+
+		for file in files:
+			fullpath = os.path.join(root, file)
+			relpath = fullpath.replace(mission.path, '')[1:]
+			if included_folder and not should_ignore(relpath, ignored_files):
+				inc.append( MissionFile(fullpath, relpath) )
+				num_inc_files += 1
+			else:
+				exc.append( MissionFile(fullpath, relpath) )
+				num_exc_files += 1
+
+	mission.included = FileGroup(inc, num_inc_dirs, num_inc_files)
+	mission.excluded = FileGroup(exc, num_exc_dirs, num_exc_files)
+
+	# print("\nincluded files")
+	# for f in inc:
+	# 	print("    ", f)
+
+	# print("\nexcluded files")
+	# for f in exc:
+	# 	print("        ", f)
+
+	# print(f"\n       included {num_inc_dirs} dirs, {num_inc_files} files  | {len(inc)}" )
+	# print(f"\n       excluded {num_exc_dirs} dirs, {num_exc_files} files  | {len(exc)}" )
+	# print(f"\n       total {num_inc_dirs+num_exc_dirs} dirs, {num_inc_files+num_exc_files} files  | {len(inc)+len(exc)}" )
+
 
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 #       TASK FUNCTIONS
@@ -153,95 +208,50 @@ def load_pkignore():
 def print_quick_help():
 	echo(f"""
     Usage:
-        {os.path.basename(__file__)} <fm_path> <options>
+        {os.path.basename(__file__)} <path> <options>
 
     Use '{os.path.basename(__file__)} -h' for more information.
 	""")
 
 
 def pack_fm():
-	fm_name = os.path.basename(data.fm_path)
-	zipname = fm_name + ".pk4"
-	add_maps_directory_to_ignore_list(fm_name)
+	zipname = mission.name + ".pk4"
 
 	echo(f"\nPacking '{zipname}'... \n")
 	t1 = time.time()
 
 	with zipf.ZipFile(zipname, 'w', zipf.ZIP_DEFLATED, compresslevel=9) as f:
-		pack_files(f)
+		for file in mission.included.files:
+			echo("    ", file.relpath)
+			f.write(file.relpath)
 
 	t2 = time.time()
 	total_time = "{:.1f}".format(t2-t1)
 
 	echo(f"\nFinished packing '{zipname}'")
-	echo(f"    {data.dir_count} dirs, {data.file_count} files, {total_time} seconds")
+	echo(f"    {mission.included.dir_count} dirs, {mission.included.file_count} files, {total_time} seconds")
 
 
-def pack_files(f):
-	for root, dirs, files in os.walk(data.fm_path):
-		if should_ignore(root, ignored_folders): continue
-		data.dir_count += 1
-		for file in files:
-			filename = os.path.join(root, file).replace(data.fm_path, '')[1:]
-			if should_ignore(filename, ignored_files): continue
-			echo(filename)
-			f.write(filename)#, os.path.relpath(filename, os.path.join(filename, '..')))
-			data.file_count += 1
+def check_files(arg, file_group, header):
+	abspath = parse_path(arg)
+	relpath = abspath.replace(mission.path, '')[1:]
+	is_root = arg in ['.', mission.path]
 
-	map_files = get_map_files()
-	data.dir_count += 1
-	for file in map_files:
-		filename = file.replace(data.fm_path, '')[1:]
-		echo(filename)
-		f.write(filename)
-		data.file_count += 1
+	if is_root: echo(f"\n{header}\n")
+	else:       echo(f"\n{header} in '{os.path.join(mission.name, relpath)}'\n")
 
+	num_files = 0
+	for f in file_group.files:
+		if abspath in f.fullpath:
+			num_files += 1
+			echo(f"    {f.fullpath.replace(abspath , '')[1:]}")
 
-def check_files():
-	dir = args.check
-	if dir.startswith("./"):
-		dir = dir.replace("./", '')
-
-	if dir == "maps":
-		map_files = get_map_files()
-		data.dir_count = 0
-		for file in map_files:
-			filename = file.replace(data.fm_path, '')[1:]
-			echo(filename)
-			data.file_count += 1
-	else:
-		if dir == '.':
-			dirpath = data.fm_path
-			fm_name = os.path.basename(dirpath)
-			add_maps_directory_to_ignore_list(fm_name)
-		else:
-			dirpath = os.path.join(data.fm_path, dir)
-
-		if not os.path.exists(dirpath):
-			error(f"invalid directory '{dir}'" )
-
-		for root, dirs, files in os.walk(dirpath):
-			if should_ignore(root, ignored_folders): continue
-			for file in files:
-				rel_filepath = os.path.join(root, file).replace(dirpath, '')[1:]
-				if should_ignore(rel_filepath, ignored_files): continue
-				echo(rel_filepath)
-				data.file_count += 1
-			data.dir_count += 1
-
-		if dir == '.':
-			map_files = get_map_files()
-			data.dir_count += 1
-			for file in map_files:
-				filename = file.replace(data.fm_path, '')[1:]
-				echo(filename)
-				data.file_count += 1
-
-	echo(f"\n    {data.dir_count} dirs, {data.file_count} files")
+	if is_root: echo(f"\n       {file_group.file_count} files")
+	else:       echo(f"\n       {num_files}/{file_group.file_count} files")
 
 
 def get_pkignore_csv():
-	file_path = os.path.join(data.fm_path, PKIGNORE_FILENAME)
+	file_path = os.path.join(mission.path, PKIGNORE_FILENAME)
 	if not os.path.exists(file_path):
 		return ""
 
@@ -268,7 +278,7 @@ def create_pk_ignore(csv):
 
 	content = '\n'.join(vals)
 
-	file_path = os.path.join(data.fm_path, PKIGNORE_FILENAME)
+	file_path = os.path.join(mission.path, PKIGNORE_FILENAME)
 	with open(file_path, 'w') as f:
 		f.write(content)
 
@@ -283,35 +293,42 @@ if __name__ == "__main__":
 
 	# parser.usage = "" # TODO
 
-	parser.add_argument("--version",          action="version",    version=f"FM Packer v{VERSION} for The Dark Mod")
+	parser.add_argument("--version",           action="version",    version=f"FM Packer v{VERSION} for The Dark Mod")
 	parser.add_argument("-qh", "--quick_help", action="store_true", help="show a shortened help message")
-	parser.add_argument("path",               type=str, const=None, nargs='?', help="the path (relative or absolute) to the target fm")
-	parser.add_argument("-c", "--check",      type=str, const='.', nargs='?', help="list files to include in pk4 within 'CHECK' without packing them, where 'CHECK' is a relative path")
-	parser.add_argument("--pk_set",           type=str, help="creates a .pkignore file with the given comma- or space-separated filters")
-	parser.add_argument("--pk_get",           action="store_true", help="shows the .pkignore content as csv filters")
+
+	parser.add_argument("path",      type=str, const=None, nargs='?', help="the path (relative or absolute) to the target fm")
+	parser.add_argument("--pk_set",  type=str,                        help="creates a .pkignore file with the given comma- or space-separated filters")
+	parser.add_argument("--pk_get",  action="store_true",             help="shows the .pkignore content as csv filters")
+
+	parser.add_argument("-i", "--included", type=str, const='.', nargs='?', help="list files to include in pk4 within 'INCLUDED' without packing them, where 'INCLUDED' is a relative path")
+	parser.add_argument("-e", "--excluded", type=str, const='.', nargs='?', help="list files to exclude from pk4 within 'EXCLUDED' without packing them, where 'EXCLUDED' is a relative path")
 
 	args = parser.parse_args()
+
 	if args.quick_help:
 		print_quick_help()
 		exit()
 
 	if args.pk_set:
-		echo("Previous .pkignore:", get_pkignore_csv())
+		echo("Previous .pkignore:\n\t", get_pkignore_csv())
 		create_pk_ignore(args.pk_set)
-		echo("\nNew .pkignore:", get_pkignore_csv())
+		echo("\nNew .pkignore:\n\t", get_pkignore_csv())
 		exit()
 
 	if args.pk_get:
-		echo(".pkignore:", get_pkignore_csv())
+		echo(".pkignore:\n\t", get_pkignore_csv())
 		exit()
 
 	if not args.path:
-		error("A path must be provided.")
+		error("a path must be provided")
 
 	set_fm_path(args.path)
 	validate_fm_path()
 	load_pkignore()
+	gather_files()
 
-	if args.check: check_files()
-	else:          pack_fm()
+	if   args.included: check_files(args.included, mission.included, "Included files")
+	elif args.excluded: check_files(args.excluded, mission.excluded, "Excluded files")
+	else:               pack_fm()
+
 
