@@ -17,7 +17,7 @@ from enum import Enum
 
 echo = print  # just to differentiate from debug prints
 
-VERSION = "0.5.2"
+VERSION = "0.6"
 PKIGNORE_FILENAME = ".pkignore"
 MODFILE_FILENAME = "darkmod.txt"
 
