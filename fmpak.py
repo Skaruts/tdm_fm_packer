@@ -297,8 +297,8 @@ if __name__ == "__main__":
 	parser.add_argument("-qh", "--quick_help", action="store_true", help="show a shortened help message")
 
 	parser.add_argument("path",      type=str, const=None, nargs='?', help="the path (relative or absolute) to the target fm")
-	parser.add_argument("--pk_set",  type=str,                        help="creates a .pkignore file with the given comma- or space-separated filters")
-	parser.add_argument("--pk_get",  action="store_true",             help="shows the .pkignore content as csv filters")
+	parser.add_argument("--pkset",  type=str,                        help="creates a .pkignore file with the given comma- or space-separated filters")
+	parser.add_argument("--pkget",  action="store_true",             help="shows the .pkignore content as csv filters")
 
 	parser.add_argument("-i", "--included", type=str, const='.', nargs='?', help="list files to include in pk4 within 'INCLUDED' without packing them, where 'INCLUDED' is a relative path")
 	parser.add_argument("-e", "--excluded", type=str, const='.', nargs='?', help="list files to exclude from pk4 within 'EXCLUDED' without packing them, where 'EXCLUDED' is a relative path")
@@ -309,13 +309,13 @@ if __name__ == "__main__":
 		print_quick_help()
 		exit()
 
-	if args.pk_set:
+	if args.pkset:
 		echo("Previous .pkignore:\n\t", get_pkignore_csv())
-		create_pk_ignore(args.pk_set)
+		create_pk_ignore(args.pkset)
 		echo("\nNew .pkignore:\n\t", get_pkignore_csv())
 		exit()
 
-	if args.pk_get:
+	if args.pkget:
 		echo(".pkignore:\n\t", get_pkignore_csv())
 		exit()
 
