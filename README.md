@@ -10,13 +10,9 @@ Usage syntax looks like this
 fmpak.py <fm_path> <options>
 ```
 
-Run `fmpak.py` with the path to your fm. If you're invoking `fmpak.py` from inside the FM directory, you can use a `.` for *"current directory"*:
-```
-fmpak.py .
-```
-The path can be absolute, or relative to the current directory.
+Run `fmpak.py` with the path to your fm. The path can be absolute or relative to the current directory. If you invoke `fmpak.py` from inside the FM directory, you can use a `.`.
 
-The script will abort if it doesn't detect `darkmod.txt` in the directory you run it from, so make sure you run it from inside a valid FM directory.
+The process will abort if it doesn't detect `darkmod.txt` in the given `fm_path`.
 
 You can view help information using `-h` or `--help`:
 ```
@@ -25,7 +21,9 @@ fmpak.py -h
 
 ## The `.pkignore` file
 
-By default FM Packer will pack everything in your FM directory, but you can create a `.pkignore` file inside your FM directory, and specify what should be excluded. This file works, in a limited way, similarly to a `.gitignore` file.
+By default FM Packer will pack everything in your FM directory, but you can create a `.pkignore` file in it, and specify what should be excluded. You can do it either with a text editor or using the `--pkset` argument (see below).
+
+The `.pkignore` works, in a limited way, similarly to a `.gitignore` file.
 
 ```py
 # suports comments
@@ -50,32 +48,66 @@ Some files and folders are automatically excluded by the script:
 
 
 ## Options
-- #### `-h` / `--help`
+- #### `-h | --help`
 	Displays usage information.
 
-- #### `-qh` / `--quick_help`
+- #### `-qh | --quick_help`
 	Displays shortened usage information.
 
-- #### --version`
+- #### `--version`
 	Displays the version of the FM Packer
 
-- #### `-c` / `--check`
+- #### `-i | --included [path]`
 	List files that will be included in the pk4 without packing them, which can be useful to check if the filters are correct.
 	```
-	fmpak.py . -c
+	fmpak.py . -i
 	```
-	You can also specify a directory, to list only the files inside it:
+	You can also specify a relative path, to list only the files inside it:
 	```
-	fmpak.py . -c guis/assets
+	fmpak.py . -i guis/assets
 	```
+- #### `-e | --excluded [path]`
+	List files that will be included in the pk4 without packing them, which can be useful to check if the filters are correct.
 
-- #### `--pk_set`
+	Works the same way as `--included`.
+
+- #### `--pkset`
 	Creates a .pkignore file with the given comma- or space-separated filters - may be needed to enclose them in quotes.
 	```
-	fmpak . --pk_set "sources/, .blend, some_file.txt"
+	fmpak.py . --pk_set "sources/, .blend, some_file.txt"
 	```
-- #### `--pk_get`
+- #### `--pkget`
 	Shows the current content of the .pkignore file as csv filters.
 	```
-	fmpak . --pk_get
+	fmpak.py . --pk_get
 	```
+
+### Validating / Checking Files
+
+- #### `--validate [all | paths | models]`
+	Used to check for problems in the paths and unused files.
+	- **paths** - checks all file paths for spaces or special characters that can cause problems.
+	- **models** - checks for 3d models that not being used by any of the maps in the map sequence.
+	- **all** - does all of the above.
+	```
+	fmpak.py . --validate paths
+	```
+
+- #### `-cn | --check_named [name, prop1 val1, prop2 val2, ...]`
+	Checks whether an entity named `name` contains the given properties with the given values.
+
+	Name and properties need to be all contained in one string argument, separated by commas (values separated by spaces).
+
+	```
+	fmpak.py . -cn "key_master, inv_map_start 0, nodrop 1, inv_droppable 0"
+	```
+
+- #### `-cc | --check_class [classname, prop1 val1, prop2 val2, ...]`
+	Checks whether entities with classname `class` contain the given properties with the given values.
+
+	Syntax is the same as `--check_named`, except it supports `*` for checking several different classnames at once.
+
+	```
+	fmpak.py . -cc "atdm:key_*, inv_droppable 1"
+	```
+
