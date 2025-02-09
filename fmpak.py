@@ -338,12 +338,12 @@ if __name__ == "__main__":
 	parser.add_argument("--version",           action="version",    version=f"FM Packer v{VERSION} for The Dark Mod")
 	parser.add_argument("-qh", "--quick_help", action="store_true", help="show a shortened help message")
 
-	parser.add_argument("path",      type=str, const=None, nargs='?', help="the path (relative or absolute) to the target fm")
-	parser.add_argument("--pkset",  type=str,                        help="creates a .pkignore file with the given comma- or space-separated filters")
-	parser.add_argument("--pkget",  action="store_true",             help="shows the .pkignore content as csv filters")
+	parser.add_argument("path",    type=str, const=None, nargs='?', help="the path (relative or absolute) to the target fm")
+	parser.add_argument("--pkset", type=str, metavar="[csv/ssv]",   help="creates a .pkignore file with the given comma- or space-separated filter values")
+	parser.add_argument("--pkget", action="store_true",             help="shows the .pkignore content as csv filters")
 
-	parser.add_argument("-i", "--included", type=str, const='.', nargs='?', help="list files to include in pk4 within 'INCLUDED' without packing them, where 'INCLUDED' is a relative path")
-	parser.add_argument("-e", "--excluded", type=str, const='.', nargs='?', help="list files to exclude from pk4 within 'EXCLUDED' without packing them, where 'EXCLUDED' is a relative path")
+	parser.add_argument("-i", "--included", type=str, const='.', nargs='?', metavar="path", help="list files to include in pk4 within 'path' without packing them, where 'path' is a relative path (if ommitted, the mission path is used)")
+	parser.add_argument("-e", "--excluded", type=str, const='.', nargs='?', metavar="path", help="list files to exclude from pk4 within 'path' without packing them, where 'path' is a relative path (if ommitted, the mission path is used)")
 
 	parser.add_argument("--validate", type=str, choices=["paths"], help="validate the mission")
 
