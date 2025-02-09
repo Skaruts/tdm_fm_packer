@@ -21,6 +21,11 @@ VERSION = "0.5.1"
 PKIGNORE_FILENAME = ".pkignore"
 MODFILE_FILENAME = "darkmod.txt"
 
+INVALID_CHARS = [' ',
+	'(', ')', '{', '}', '[', ']', '|', '!', '@', '#', '$', '%', '^', '&',
+	'*', ',', '+', '-', '"', '\'', ':', ';', '?', '<', '>', '`', '~', '/'
+]
+
 class FileGroup:
 	def __init__(self, files, dir_count, file_count):
 		self.files      = files
@@ -151,7 +156,6 @@ def load_pkignore():
 
 def add_ignored_maps():
 	map_names = get_mapsequence_filenames()
-	print(map_names)
 	files = get_files_in_dir(os.path.join(mission.path, "maps"))
 
 	for f in files:
@@ -284,6 +288,44 @@ def create_pk_ignore(csv):
 
 
 
+
+def validate_filepaths():
+	name_msg = ""
+	invalid_filespaths = []
+
+	for c in INVALID_CHARS:
+		if c in mission.name:
+			name_msg = f"      mission name: {mission.name}"
+
+	for f in mission.included.files:
+		for c in INVALID_CHARS:
+			if c in f.relpath:
+				invalid_filespaths.append(f.relpath)
+
+	if name_msg != "" or len(invalid_filespaths) > 0:
+		echo("\n  Some paths contain spaces or invalid chars:\n")
+		if name_msg != "":
+			echo(name_msg + "\n")
+
+		for ifp in invalid_filespaths:
+			echo(f"      {ifp}")
+	else:
+		echo("\nAll filepaths are ok\n")
+
+	echo("\n  Avoid using any of:" + " ".join(INVALID_CHARS)[1:] )
+
+
+
+
+def validate_mission_files(arg):
+	# match arg:
+		# case chars:
+	if arg == "paths":
+		validate_filepaths()
+
+
+
+
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 # 		run
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
@@ -302,6 +344,8 @@ if __name__ == "__main__":
 
 	parser.add_argument("-i", "--included", type=str, const='.', nargs='?', help="list files to include in pk4 within 'INCLUDED' without packing them, where 'INCLUDED' is a relative path")
 	parser.add_argument("-e", "--excluded", type=str, const='.', nargs='?', help="list files to exclude from pk4 within 'EXCLUDED' without packing them, where 'EXCLUDED' is a relative path")
+
+	parser.add_argument("--validate", type=str, choices=["paths"], help="validate the mission")
 
 	args = parser.parse_args()
 
@@ -326,6 +370,10 @@ if __name__ == "__main__":
 	validate_fm_path()
 	load_pkignore()
 	gather_files()
+
+	if args.validate:
+		validate_mission_files(args.validate)
+		exit()
 
 	if   args.included: check_files(args.included, mission.included, "Included files")
 	elif args.excluded: check_files(args.excluded, mission.excluded, "Excluded files")
