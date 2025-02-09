@@ -322,7 +322,7 @@ def validate_filepaths():
 		echo(f"\n  {num_inv_paths} invalid paths\n")
 		echo("\n  Avoid using any of:" + " ".join(INVALID_CHARS)[1:] )
 	else:
-		echo(" all ok.\n")
+		echo(" All OK.\n")
 
 
 def get_all_properties_named(prop):
@@ -359,15 +359,16 @@ def validate_models():
 		echo("\n  There are no unused models.\n")
 
 
-
+def parse_maps():
+	for map in mission.map_names:
+		filepath = os.path.join(mission.path, "maps", map + ".map")
+		map_parser.parse(filepath)
 
 def validate_mission_files(arg):
 	if arg == "paths":
 		validate_filepaths()
 	else:
-		for map in mission.map_names:
-			filepath = os.path.join(mission.path, "maps", map + ".map")
-			map_parser.parse(filepath)
+		parse_maps()
 
 		if   arg == "all":
 			validate_filepaths()
@@ -382,6 +383,101 @@ def validate_mission_files(arg):
 		# elif arg == "skins":     pass
 		# elif arg == "dds":       pass
 		# elif arg == "particles": pass
+
+
+def get_entity_named(name):
+	for map in map_parser.maps:
+		for e in map.entities:
+			if e.name == name:
+				return e
+	return None
+
+def get_entities_of_class(classname):
+	ents = []
+	if not '*' in classname:
+		for map in map_parser.maps:
+			for ent in map.entities:
+				if ent.classname == classname:
+					ents.append(ent)
+	else:
+		strings = classname.split('*')
+		# print(strings)
+		left = strings[0]
+		right = strings[1] # if len(strings) > 1 else ""
+		# print(len(map_parser.maps))
+		for map in map_parser.maps:
+			# print(len(map.entities))
+			for ent in map.entities:
+				# print(left in ent.classname, right in ent.classname)
+				if left in ent.classname and right in ent.classname:
+					ents.append(ent)
+
+	return ents
+
+
+def check_named_entity_property(check_named):
+	parse_maps()
+
+	args = check_named.replace(', ', ',').split(',')
+	name = args[0]
+	props = [ args[i].split(' ') for i in range(1, len(args)) ] # args[1:]
+	echo(f"\nChecking properties from '{name}' entity ... ", end="")
+
+	ent = get_entity_named(name)
+	if not ent:
+		echo(f"\n\n  No entity found with name '{name}'")
+	else:
+		invalid = False
+		for p in props:
+			name = p[0]
+			val = p[1]
+			if not name in ent.properties \
+			or val != ent.properties[name]:
+				invalid = True
+				echo(f"\n\n    Entity differs: '{ent.name}' ({ent.classname})")
+				break
+		if not invalid:
+			echo("  OK")
+
+
+def check_class_property(check_class):
+	parse_maps()
+
+	args = check_class.replace(', ', ',').split(',')
+	classname = args[0]
+	props = [ args[i].split(' ') for i in range(1, len(args)) ] # args[1:]
+
+	echo(f"\nChecking properties from '{classname}' entities ... ", end="")
+
+	ents = get_entities_of_class(classname)
+	if len(ents) == 0:
+		echo(f"\n\n  No entities found with '{classname}' classname")
+	else:
+		invalid_entities = []
+		for e in ents:
+			invalid = False
+			for p in props:
+				name = p[0]
+				val = p[1]
+				if not name in e.properties \
+				or val != e.properties[name]:
+					invalid_entities.append(e)
+					invalid = True
+					break
+			if invalid:
+				break
+
+		if len(invalid_entities) > 0:
+			# echo("\n\n  Some entities don't fit the criteria:\n")
+			echo("\n")
+			for e in invalid_entities:
+				echo(f"    {e.classname}    {e.name}")
+			echo(f"\n\n  {len(invalid_entities)} entities differ\n")
+		else:
+			echo(f"  All OK\n")
+
+
+
 
 
 
@@ -404,6 +500,7 @@ class Scope(Enum):
 class Entity:
 	def __init__(self):
 		self.classname = ""
+		self.name      = ""
 		self.properties = {}
 		self.brushes = []
 		self.patches = []
@@ -439,7 +536,7 @@ class MapParser:
 		if debug_show_scopes: print(">", scope)
 		self.scope = scope
 
-	def match_scope(self, sc):
+	def is_scope(self, sc):
 		return self.scope == sc
 
 	# debug
@@ -453,14 +550,16 @@ class MapParser:
 		print("       ", name, value)
 
 	def parse_token(self, token):
-		if self.match_scope(Scope.File):
+		if self.scope == Scope.File:
 			self.print_scope("Scope.File", token)
+
 			if token == "{":
 				self.curr_ent = Entity()
 				self.set_scope(Scope.Entity)
 
-		elif self.match_scope(Scope.Entity):
+		elif self.scope == Scope.Entity:
 			self.print_scope("Scope.Entity", token)
+
 			if token.startswith('"'):
 				self.prop = token[1:-1]
 				self.set_scope(Scope.Property)
@@ -472,7 +571,7 @@ class MapParser:
 				self.print_prop("----------------------", "")
 				self.set_scope(Scope.File)
 
-		elif self.match_scope(Scope.Def):
+		elif self.scope == Scope.Def:
 			self.print_scope("Scope.Def", token)
 
 			if   token == "brushDef3":
@@ -484,7 +583,7 @@ class MapParser:
 			elif token == "}":
 				self.set_scope(Scope.Entity)
 
-		elif self.match_scope(Scope.Property):
+		elif self.scope == Scope.Property:
 			self.print_scope("Scope.Property", token)
 
 			if token.startswith('"'):
@@ -497,7 +596,7 @@ class MapParser:
 				self.prop = None
 				self.set_scope(Scope.Entity)
 
-		elif self.match_scope(Scope.BrushDef3):
+		elif self.scope == Scope.BrushDef3:
 			if token.startswith('"'):
 				self.print_prop("brush texture: ", token)
 				self.curr_brush.textures.append(token[1:-1])
@@ -506,7 +605,7 @@ class MapParser:
 				self.curr_brush = None
 				self.set_scope(Scope.Def)
 
-		elif self.match_scope(Scope.PatchDef3):
+		elif self.scope == Scope.PatchDef3:
 			if token.startswith('"'):
 				self.print_prop("patch texture: ", token)
 				self.curr_patch.texture = token[1:-1]
@@ -519,7 +618,7 @@ class MapParser:
 		self.curr_map = MapData()
 		self.maps.append(self.curr_map)
 
-		echo(f"\n  Parsing map '{os.path.basename(map_file)}'...", end="")
+		echo(f"\nParsing map '{os.path.basename(map_file)}'...", end="")
 
 		t1 = time.time()
 		with open(map_file, 'r') as file:
@@ -530,7 +629,7 @@ class MapParser:
 				tokens = line.split(' ')
 				if tokens[0] in ["//", "Version"] : continue
 
-				# if it's a vector value, it contain spaces, undo their split
+				# if it's a vector value it contain spaces, so undo their split
 				if len(tokens) > 2 and tokens[1].startswith('"'):
 					tokens = [tokens[0], " ".join(tokens[1:])]
 
@@ -559,7 +658,7 @@ if __name__ == "__main__":
 
 	parser = ap.ArgumentParser()
 
-	# parser.usage = "" # TODO
+	# parser.usage = "" # TODO maybe
 
 	parser.add_argument("--version",           action="version",    version=f"FM Packer v{VERSION} for The Dark Mod")
 	parser.add_argument("-qh", "--quick_help", action="store_true", help="show a shortened help message")
@@ -572,9 +671,10 @@ if __name__ == "__main__":
 	parser.add_argument("-e", "--excluded", type=str, const='.', nargs='?', metavar="path", help="list files to exclude from pk4 within 'path' without packing them, where 'path' is a relative path (if ommitted, the mission path is used)")
 
 	parser.add_argument("--validate", type=str, choices=["all", "paths", "models"], help="validate the mission")
+	parser.add_argument("-cn", "--check_named", metavar="[n, p v, ...]", type=str, help="check if properties [p] exist in entity named [n] with values [v]. E.g. -cn \"master_key, nodrop 1, inv_droppable 1\"")
+	parser.add_argument("-cc", "--check_class", metavar="[c, p v, ...]", type=str, help="check if properties [p] exist in entities of classname [n] with values [v]. E.g. -cn \"atdm:key*, nodrop 1, inv_droppable 1\"")
 
 	args = parser.parse_args()
-
 
 	if args.quick_help:
 		print_quick_help()
@@ -600,6 +700,14 @@ if __name__ == "__main__":
 
 	if args.validate:
 		validate_mission_files(args.validate)
+		exit()
+
+	if args.check_named:
+		check_named_entity_property(args.check_named)
+		exit()
+
+	if args.check_class:
+		check_class_property(args.check_class)
 		exit()
 
 	if   args.included: check_files(args.included, mission.included, "Included files")
