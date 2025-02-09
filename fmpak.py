@@ -13,11 +13,11 @@ import os
 import time
 import zipfile as zipf
 import argparse as ap
-
+from enum import Enum
 
 echo = print  # just to differentiate from debug prints
 
-VERSION = "0.5.1"
+VERSION = "0.5.2"
 PKIGNORE_FILENAME = ".pkignore"
 MODFILE_FILENAME = "darkmod.txt"
 
@@ -37,6 +37,7 @@ class mission: # data class to avoid using 'global'
 	name    = ""
 	included : FileGroup
 	excluded : FileGroup
+	map_names = []
 
 # make sure to exclude any meta stuff
 ignored_folders = set(["savegames", "__pycache__", ".git"])
@@ -155,14 +156,19 @@ def load_pkignore():
 
 
 def add_ignored_maps():
-	map_names = get_mapsequence_filenames()
-	files = get_files_in_dir(os.path.join(mission.path, "maps"))
+	mission.map_names = get_mapsequence_filenames()
 
-	for f in files:
-		_, tail = os.path.split(f)
-		for name in map_names:
-			if tail.startswith(name): continue
-			ignored_files.add(tail)
+	maps_dir = os.path.join(mission.path, "maps")
+	for root, dirs, files in os.walk(maps_dir):
+		invalid_dir = root != maps_dir
+		for f in files:
+			if invalid_dir:
+				ignored_files.add(f)
+				continue
+
+			for name in mission.map_names:
+				if not f.startswith(name):
+					ignored_files.add(f)
 
 
 def gather_files():
@@ -287,11 +293,11 @@ def create_pk_ignore(csv):
 		f.write(content)
 
 
-
-
 def validate_filepaths():
 	name_msg = ""
 	invalid_filespaths = []
+
+	echo("\n  Checking filepaths ...", end="")
 
 	for c in INVALID_CHARS:
 		if c in mission.name:
@@ -309,19 +315,237 @@ def validate_filepaths():
 
 		for ifp in invalid_filespaths:
 			echo(f"      {ifp}")
-	else:
-		echo("\nAll filepaths are ok\n")
 
-	echo("\n  Avoid using any of:" + " ".join(INVALID_CHARS)[1:] )
+		num_inv_paths = len(invalid_filespaths)
+		if name_msg != "":
+			num_inv_paths += 1
+		echo(f"\n  {num_inv_paths} invalid paths\n")
+		echo("\n  Avoid using any of:" + " ".join(INVALID_CHARS)[1:] )
+	else:
+		echo(" all ok.\n")
+
+
+def get_all_properties_named(prop):
+	props = []
+	for map in map_parser.maps:
+		for ent in map.entities:
+			if prop in ent.properties:
+				props.append({
+					"name"  : prop,
+					"value" : ent.properties[prop]
+				})
+	return props
+
+VALID_MODEL_FORMATS = ["ase", "lwo", "obj"]  # TODO: is obj ever used?
+
+def validate_models():
+	prop_vals = [ p["value"] for p in get_all_properties_named("model") ]
+	model_files = [ f.relpath.replace('\\', '/') for f in mission.included.files if "models" in f.fullpath]
+
+	invalid_models = []
+
+	for f in model_files:
+		if not f in prop_vals:
+			invalid_models.append(f)
+
+	if len(invalid_models) > 0:
+		echo("\n  There are some unused models:\n")
+		for m in invalid_models:
+			echo(f"      {m}")
+
+		echo(f"\n  {len(invalid_models)} unused models\n")
+
+	else:
+		echo("\n  There are no unused models.\n")
 
 
 
 
 def validate_mission_files(arg):
-	# match arg:
-		# case chars:
 	if arg == "paths":
 		validate_filepaths()
+	else:
+		for map in mission.map_names:
+			filepath = os.path.join(mission.path, "maps", map + ".map")
+			map_parser.parse(filepath)
+
+		if   arg == "all":
+			validate_filepaths()
+			validate_models()
+		elif arg == "models":
+			validate_models()
+		# elif arg == "files":     pass
+		# elif arg == "sounds":    pass
+		# elif arg == "materials": pass
+		# elif arg == "guis":      pass
+		# elif arg == "scripts":   pass
+		# elif arg == "skins":     pass
+		# elif arg == "dds":       pass
+		# elif arg == "particles": pass
+
+
+
+
+#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
+# 		MAP PARSER
+#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
+
+debug_show_scopes = 0
+debug_print_props = 0
+
+class Scope(Enum):
+	File          = "Scope.File"
+	Entity        = "Scope.Entity"
+	Property      = "Scope.Property"
+	Def           = "Scope.Def"
+	BrushDef3     = "Scope.BrushDef3"
+	PatchDef3     = "Scope.PatchDef3"
+
+class Entity:
+	def __init__(self):
+		self.classname = ""
+		self.properties = {}
+		self.brushes = []
+		self.patches = []
+
+class Property:
+	def __init__(self, name, value):
+		self.name = name
+		self.value = value
+
+class Brush:
+	def __init__(self):
+		self.textures = []
+
+class Patch:
+	def __init__(self):
+		self.texture = ""
+
+class MapData:
+	def __init__(self):
+		self.entities = []
+
+class MapParser:
+	def __init__(self):
+		self.scope      = Scope.File
+		self.prop       = None
+		self.curr_ent   = None
+		self.curr_brush = None
+		self.curr_patch = None
+		self.maps = []
+		self.curr_map = None
+
+	def set_scope(self, scope):
+		if debug_show_scopes: print(">", scope)
+		self.scope = scope
+
+	def match_scope(self, sc):
+		return self.scope == sc
+
+	# debug
+	def print_scope(self, name, token):
+		if not debug_show_scopes: return
+		print("    ", name, token)
+
+	# debug
+	def print_prop(self, name, value):
+		if not debug_print_props: return
+		print("       ", name, value)
+
+	def parse_token(self, token):
+		if self.match_scope(Scope.File):
+			self.print_scope("Scope.File", token)
+			if token == "{":
+				self.curr_ent = Entity()
+				self.set_scope(Scope.Entity)
+
+		elif self.match_scope(Scope.Entity):
+			self.print_scope("Scope.Entity", token)
+			if token.startswith('"'):
+				self.prop = token[1:-1]
+				self.set_scope(Scope.Property)
+			elif token == "{":
+				self.set_scope(Scope.Def)
+			elif token == "}":
+				self.curr_map.entities.append(self.curr_ent)
+				self.curr_ent = None
+				self.print_prop("----------------------", "")
+				self.set_scope(Scope.File)
+
+		elif self.match_scope(Scope.Def):
+			self.print_scope("Scope.Def", token)
+
+			if   token == "brushDef3":
+				self.curr_brush = Brush()
+				self.set_scope(Scope.BrushDef3)
+			elif token == "patchDef3":
+				self.curr_patch = Patch()
+				self.set_scope(Scope.PatchDef3)
+			elif token == "}":
+				self.set_scope(Scope.Entity)
+
+		elif self.match_scope(Scope.Property):
+			self.print_scope("Scope.Property", token)
+
+			if token.startswith('"'):
+				val = token[1:-1]
+				if   self.prop == "classname": self.curr_ent.classname = val
+				elif self.prop == "name":      self.curr_ent.name = val
+
+				self.print_prop(self.prop, val)
+				self.curr_ent.properties[self.prop] = val
+				self.prop = None
+				self.set_scope(Scope.Entity)
+
+		elif self.match_scope(Scope.BrushDef3):
+			if token.startswith('"'):
+				self.print_prop("brush texture: ", token)
+				self.curr_brush.textures.append(token[1:-1])
+			elif token == '}':
+				self.curr_ent.brushes.append(self.curr_brush)
+				self.curr_brush = None
+				self.set_scope(Scope.Def)
+
+		elif self.match_scope(Scope.PatchDef3):
+			if token.startswith('"'):
+				self.print_prop("patch texture: ", token)
+				self.curr_patch.texture = token[1:-1]
+			elif token == '}':
+				self.curr_ent.patches.append(self.curr_patch)
+				self.curr_patch = None
+				self.set_scope(Scope.Def)
+
+	def parse(self, map_file):
+		self.curr_map = MapData()
+		self.maps.append(self.curr_map)
+
+		echo(f"\n  Parsing map '{os.path.basename(map_file)}'...", end="")
+
+		t1 = time.time()
+		with open(map_file, 'r') as file:
+			for line in file:
+				line = line.replace('\n', '')
+				line = line.replace('\t', '')
+
+				tokens = line.split(' ')
+				if tokens[0] in ["//", "Version"] : continue
+
+				# if it's a vector value, it contain spaces, undo their split
+				if len(tokens) > 2 and tokens[1].startswith('"'):
+					tokens = [tokens[0], " ".join(tokens[1:])]
+
+				for t in tokens:
+					self.parse_token(t)
+
+		t2 = time.time()
+		total_time = "{:.1f}".format(t2-t1)
+		echo(f" ({total_time} secs)'")
+
+		assert(self.scope      == Scope.File)
+		assert(self.prop       == None)
+		assert(self.curr_ent   == None)
+		assert(self.curr_brush == None)
+		assert(self.curr_patch == None)
 
 
 
@@ -331,6 +555,8 @@ def validate_mission_files(arg):
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 # keep this check here in case this script may be called from another tool
 if __name__ == "__main__":
+	map_parser = MapParser()
+
 	parser = ap.ArgumentParser()
 
 	# parser.usage = "" # TODO
@@ -345,9 +571,10 @@ if __name__ == "__main__":
 	parser.add_argument("-i", "--included", type=str, const='.', nargs='?', metavar="path", help="list files to include in pk4 within 'path' without packing them, where 'path' is a relative path (if ommitted, the mission path is used)")
 	parser.add_argument("-e", "--excluded", type=str, const='.', nargs='?', metavar="path", help="list files to exclude from pk4 within 'path' without packing them, where 'path' is a relative path (if ommitted, the mission path is used)")
 
-	parser.add_argument("--validate", type=str, choices=["paths"], help="validate the mission")
+	parser.add_argument("--validate", type=str, choices=["all", "paths", "models"], help="validate the mission")
 
 	args = parser.parse_args()
+
 
 	if args.quick_help:
 		print_quick_help()
