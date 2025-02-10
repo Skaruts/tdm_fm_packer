@@ -64,6 +64,8 @@ def error(message):
 def warning(message):
 	echo(f"\nWARNING: {message}\n")
 
+def task(msg):
+	echo(msg, end="")
 
 
 def parse_path(dir):
@@ -87,7 +89,6 @@ def set_fm_path(path):
 	mission.name = os.path.basename(mission.path)
 
 
-
 def validate_fm_path():
 	if not os.path.isdir(mission.path):
 		error(f"invalid path '{mission.path}'")
@@ -98,6 +99,7 @@ def validate_fm_path():
 	is_upper = any(char.isupper() for char in mission.name)
 	if is_upper:
 		warning(f"mission directory name contains upppercase characters")
+
 
 def get_files_in_dir(dir_path:str, filters:list = []):
 	files = list()
@@ -305,7 +307,7 @@ def validate_filepaths():
 	name_msg = ""
 	invalid_filespaths = []
 
-	echo("\n  Checking filepaths ...", end="")
+	task("Checking filepaths ...")
 
 	for c in INVALID_CHARS:
 		if c in mission.name:
@@ -368,6 +370,7 @@ def validate_models():
 
 
 def parse_maps():
+	echo(f"Parsing maps")
 	for map in mission.map_names:
 		filepath = os.path.join(mission.path, "maps", map + ".map")
 		map_parser.parse(filepath)
@@ -400,89 +403,112 @@ def get_entity_named(name):
 				return e
 	return None
 
+
 def get_entities_of_class(classname):
 	ents = []
-	if not '*' in classname:
-		for map in map_parser.maps:
-			for ent in map.entities:
-				if ent.classname == classname:
-					ents.append(ent)
-	else:
-		strings = classname.split('*')
-		# print(strings)
-		left = strings[0]
-		right = strings[1] # if len(strings) > 1 else ""
-		# print(len(map_parser.maps))
-		for map in map_parser.maps:
-			# print(len(map.entities))
-			for ent in map.entities:
-				# print(left in ent.classname, right in ent.classname)
-				if left in ent.classname and right in ent.classname:
-					ents.append(ent)
-
+	for map in map_parser.maps:
+		for e in map.entities:
+			if e.classname == classname:
+				ents.append(e)
 	return ents
 
 
-def check_named_entity_property(check_named):
-	parse_maps()
+def get_entities_wildcard(attr, name):
+	ents = []
+	start = name.startswith('*')
+	end   = name.endswith('*')
 
-	args = check_named.replace(', ', ',').split(',')
-	name = args[0]
-	props = [ args[i].split(' ') for i in range(1, len(args)) ] # args[1:]
-	echo(f"\nChecking properties from '{name}' entity ... ", end="")
+	if start and end:
+		print(">> start and end")
+		name = name.replace('*', '')
+		for map in map_parser.maps:
+			for e in map.entities:
+				if name in getattr(e, attr):
+					ents.append(e)
+	elif start:
+		print(">> start")
+		name = name.replace('*', '')
+		for map in map_parser.maps:
+			for e in map.entities:
+				ent_attr = getattr(e, attr)
+				if ent_attr.endswith(name):
+					ents.append(e)
+	elif end:
+		print(">> end")
+		name = name.replace('*', '')
+		for map in map_parser.maps:
+			for e in map.entities:
+				ent_attr = getattr(e, attr)
 
-	ent = get_entity_named(name)
-	if not ent:
-		echo(f"\n\n  No entity found with name '{name}'")
+				# print(ent_attr, name)
+				if ent_attr.startswith(name):
+					ents.append(e)
 	else:
-		invalid = False
-		for p in props:
-			name = p[0]
-			val = p[1]
-			if not name in ent.properties \
-			or val != ent.properties[name]:
-				invalid = True
-				echo(f"\n\n    Entity differs: '{ent.name}' ({ent.classname})")
-				break
-		if not invalid:
-			echo("  OK")
+		print(">> else")
+		substrs = name.split('*', maxsplit=1)
+		for map in map_parser.maps:
+			for e in map.entities:
+				ent_attr = getattr(e, attr)
+				if ent_attr.startswith(substrs[0]) and ent_attr.endswith(substrs[1]):
+					ents.append(e)
+	return ents
 
 
-def check_class_property(check_class):
-	parse_maps()
-
-	args = check_class.replace(', ', ',').split(',')
-	classname = args[0]
-	props = [ args[i].split(' ') for i in range(1, len(args)) ] # args[1:]
-
-	echo(f"\nChecking properties from '{classname}' entities ... ", end="")
-
-	ents = get_entities_of_class(classname)
-	if len(ents) == 0:
-		echo(f"\n\n  No entities found with '{classname}' classname")
-	else:
-		invalid_entities = []
-		for e in ents:
-			invalid = False
-			for p in props:
-				name = p[0]
-				val = p[1]
-				if not name in e.properties \
-				or val != e.properties[name]:
-					invalid_entities.append(e)
-					invalid = True
-					break
-			if invalid:
-				break
-
-		if len(invalid_entities) > 0:
-			# echo("\n\n  Some entities don't fit the criteria:\n")
-			echo("\n")
-			for e in invalid_entities:
-				echo(f"    {e.classname}    {e.name}")
-			echo(f"\n\n  {len(invalid_entities)} entities differ\n")
+def get_entities_by(attr, name):
+	if not '*' in name:
+		if attr == "name":
+			e = get_entity_named(name)
+			if not e:
+				return []
+			return [e]
 		else:
-			echo(f"  All OK\n")
+			return get_entities_of_class(name)
+	else:
+		return get_entities_wildcard(attr, name)
+
+
+def check_entity_properties_by(attr, check_args):
+	parse_maps()
+
+	args = check_args.replace(', ', ',').split(',')
+	attr_name = args[0]
+	props = [ args[i].split(' ') for i in range(1, len(args)) ] # args[1:]
+
+	task(f"Checking properties from '{attr_name}' entities ... ")
+
+	ents = get_entities_by(attr, attr_name)
+
+	if len(ents) == 0:
+		echo(f"\n\n  No entities found with {attr} '{attr_name}'")
+	else:
+		inv_ents = check_entities_properties(ents, props)
+
+		if len(inv_ents) > 0:
+			echo(f"\n\n    Entities differ:")
+			if attr == "classname":
+				for e in inv_ents:
+					echo(f"        '{e.classname}'{' ' * (30-len(e.classname))} ({e.name})")
+			else:
+				for e in inv_ents:
+					echo(f"        '{e.name}'{' ' * (30-len(e.name))} ({e.classname})")
+			echo(f"\n\n  {len(inv_ents)} entities differ\n")
+		else:
+			echo(f"  All OK")
+
+# f"{sub1:<{gap}} | {sub2:> {gap}}"
+
+def check_entities_properties(ents, props):
+	invalid_entities = []
+	for e in ents:
+		for p in props:
+			pname, pval = p[0], p[1]
+			if not pname in e.properties \
+			or pval != e.properties[pname]:
+				invalid_entities.append(e)
+
+	return invalid_entities
+
+
 
 
 
@@ -627,7 +653,7 @@ class MapParser:
 		self.curr_map = MapData()
 		self.maps.append(self.curr_map)
 
-		echo(f"\nParsing map '{os.path.basename(map_file)}' ...", end="")
+		task(f"    '{os.path.basename(map_file)}' ...")
 
 		t1 = time.time()
 		with open(map_file, 'r') as file:
@@ -658,7 +684,7 @@ class MapParser:
 
 		t2 = time.time()
 		total_time = "{:.1f}".format(t2-t1)
-		echo(f" ({total_time} secs)'")
+		echo(f" ({total_time} secs)\n")
 
 		assert(self.scope      == Scope.File)
 		assert(self.prop       == None)
@@ -723,11 +749,11 @@ if __name__ == "__main__":
 		exit()
 
 	if args.check_named:
-		check_named_entity_property(args.check_named)
+		check_entity_properties_by("name", args.check_named)
 		exit()
 
 	if args.check_class:
-		check_class_property(args.check_class)
+		check_entity_properties_by("classname", args.check_class)
 		exit()
 
 	if   args.included: check_files(args.included, mission.included, "Included files")
