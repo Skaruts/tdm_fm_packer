@@ -648,8 +648,8 @@ class Scope(Enum):
 	Entity        = "Scope.Entity"
 	Property      = "Scope.Property"
 	Def           = "Scope.Def"
-	BrushDef3     = "Scope.BrushDef3"
-	PatchDef3     = "Scope.PatchDef3"
+	BrushDef     = "Scope.BrushDef"
+	PatchDef     = "Scope.PatchDef"
 
 class Entity:
 	def __init__(self):
@@ -722,12 +722,12 @@ class MapParser:
 		elif self.scope == Scope.Def:
 			# self.print_scope("Scope.Def", token)
 
-			if   token == "brushDef3":
 				self.curr_brush = Brush()
 				self.set_scope(Scope.BrushDef3)
-			elif token == "patchDef3":
 				self.curr_patch = Patch()
 				self.set_scope(Scope.PatchDef3)
+			if   token.startswith("brushDef"):
+			elif token.startswith("patchDef"):
 			elif token == '}':
 				self.set_scope(Scope.Entity)
 
@@ -744,7 +744,7 @@ class MapParser:
 				self.prop = None
 				self.set_scope(Scope.Entity)
 
-		elif self.scope == Scope.BrushDef3:
+		elif self.scope == Scope.BrushDef:
 			if token.startswith('"'):
 				# self.print_prop("brush texture: ", token)
 				mat = token[1:-1]
@@ -755,7 +755,7 @@ class MapParser:
 				self.curr_brush = None
 				self.set_scope(Scope.Def)
 
-		elif self.scope == Scope.PatchDef3:
+		elif self.scope == Scope.PatchDef:
 			if token.startswith('"'):
 				# self.print_prop("patch texture: ", token)
 				mat = token[1:-1]
@@ -790,6 +790,7 @@ class MapParser:
 				line_start = line[0]
 
 				if line_start == '(':
+					assert self.scope in [Scope.PatchDef, Scope.BrushDef], line
 					# when it's brush or patch, skip the faces
 					if "textures" in line:  # brush
 						q1 = line.find('"')
@@ -798,6 +799,7 @@ class MapParser:
 					else:                   # patch
 						continue
 				elif line_start == '"':
+					assert self.scope in [Scope.Entity, Scope.PatchDef], line
 					q2 = line.find('"', 1) +1
 					tokens = [ line[:q2], line[q2+1:] ]
 				elif line_start != '/':
