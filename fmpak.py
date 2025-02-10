@@ -58,8 +58,12 @@ class MissionFile:
 # 		utils
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 def error(message):
-	echo("ERROR:", message)
+	echo(f"\nERROR: {message}\n")
 	exit()
+
+def warning(message):
+	echo(f"\nWARNING: {message}\n")
+
 
 
 def parse_path(dir):
@@ -83,6 +87,7 @@ def set_fm_path(path):
 	mission.name = os.path.basename(mission.path)
 
 
+
 def validate_fm_path():
 	if not os.path.isdir(mission.path):
 		error(f"invalid path '{mission.path}'")
@@ -90,6 +95,9 @@ def validate_fm_path():
 	if not os.path.isfile(os.path.join(mission.path, MODFILE_FILENAME)):
 		error(f"no '{MODFILE_FILENAME}' found at path '{mission.path}'")
 
+	is_upper = any(char.isupper() for char in mission.name)
+	if is_upper:
+		warning(f"mission directory name contains upppercase characters")
 
 def get_files_in_dir(dir_path:str, filters:list = []):
 	files = list()
