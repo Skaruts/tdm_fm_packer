@@ -667,7 +667,8 @@ class MapParser:
 					else:                   # patch
 						continue
 				elif line_start == '"':
-					tokens = line.split(maxsplit=1)
+					q2 = line.find('"', 1) +1
+					tokens = [ line[:q2], line[q2+1:] ]
 				elif line_start != '/':
 					tokens = [line]
 				else:  # comments
