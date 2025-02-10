@@ -419,14 +419,12 @@ def get_entities_wildcard(attr, name):
 	end   = name.endswith('*')
 
 	if start and end:
-		print(">> start and end")
 		name = name.replace('*', '')
 		for map in map_parser.maps:
 			for e in map.entities:
 				if name in getattr(e, attr):
 					ents.append(e)
 	elif start:
-		print(">> start")
 		name = name.replace('*', '')
 		for map in map_parser.maps:
 			for e in map.entities:
@@ -434,17 +432,13 @@ def get_entities_wildcard(attr, name):
 				if ent_attr.endswith(name):
 					ents.append(e)
 	elif end:
-		print(">> end")
 		name = name.replace('*', '')
 		for map in map_parser.maps:
 			for e in map.entities:
 				ent_attr = getattr(e, attr)
-
-				# print(ent_attr, name)
 				if ent_attr.startswith(name):
 					ents.append(e)
 	else:
-		print(">> else")
 		substrs = name.split('*', maxsplit=1)
 		for map in map_parser.maps:
 			for e in map.entities:
