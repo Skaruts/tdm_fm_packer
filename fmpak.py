@@ -217,10 +217,10 @@ def gather_files():
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 def print_quick_help():
 	echo(f"""
-    Usage:
-        {os.path.basename(__file__)} <path> <options>
+	Usage:
+		{os.path.basename(__file__)} <path> <options>
 
-    Use '{os.path.basename(__file__)} -h' for more information.
+	Use '{os.path.basename(__file__)} -h' for more information.
 	""")
 
 
@@ -540,39 +540,32 @@ class MapParser:
 		return self.scope == sc
 
 	# debug
-	def print_scope(self, name, token):
-		if not debug_show_scopes: return
-		print("    ", name, token)
+	# def print_scope(self, name, token):
+	# 	if not debug_show_scopes: return
+	# 	print("    ", name, token)
 
-	# debug
-	def print_prop(self, name, value):
-		if not debug_print_props: return
-		print("       ", name, value)
+	# # debug
+	# def print_prop(self, name, value):
+	# 	if not debug_print_props: return
+	# 	print("       ", name, value)
 
 	def parse_token(self, token):
-		if self.scope == Scope.File:
-			self.print_scope("Scope.File", token)
-
-			if token == "{":
-				self.curr_ent = Entity()
-				self.set_scope(Scope.Entity)
-
-		elif self.scope == Scope.Entity:
-			self.print_scope("Scope.Entity", token)
+		if self.scope == Scope.Entity:
+			# self.print_scope("Scope.Entity", token)
 
 			if token.startswith('"'):
 				self.prop = token[1:-1]
 				self.set_scope(Scope.Property)
-			elif token == "{":
+			elif token == '{':
 				self.set_scope(Scope.Def)
-			elif token == "}":
+			elif token == '}':
 				self.curr_map.entities.append(self.curr_ent)
 				self.curr_ent = None
-				self.print_prop("----------------------", "")
+				# self.print_prop("----------------------", "")
 				self.set_scope(Scope.File)
 
 		elif self.scope == Scope.Def:
-			self.print_scope("Scope.Def", token)
+			# self.print_scope("Scope.Def", token)
 
 			if   token == "brushDef3":
 				self.curr_brush = Brush()
@@ -580,25 +573,25 @@ class MapParser:
 			elif token == "patchDef3":
 				self.curr_patch = Patch()
 				self.set_scope(Scope.PatchDef3)
-			elif token == "}":
+			elif token == '}':
 				self.set_scope(Scope.Entity)
 
 		elif self.scope == Scope.Property:
-			self.print_scope("Scope.Property", token)
+			# self.print_scope("Scope.Property", token)
 
 			if token.startswith('"'):
 				val = token[1:-1]
 				if   self.prop == "classname": self.curr_ent.classname = val
 				elif self.prop == "name":      self.curr_ent.name = val
 
-				self.print_prop(self.prop, val)
+				# self.print_prop(self.prop, val)
 				self.curr_ent.properties[self.prop] = val
 				self.prop = None
 				self.set_scope(Scope.Entity)
 
 		elif self.scope == Scope.BrushDef3:
 			if token.startswith('"'):
-				self.print_prop("brush texture: ", token)
+				# self.print_prop("brush texture: ", token)
 				self.curr_brush.textures.append(token[1:-1])
 			elif token == '}':
 				self.curr_ent.brushes.append(self.curr_brush)
@@ -607,31 +600,50 @@ class MapParser:
 
 		elif self.scope == Scope.PatchDef3:
 			if token.startswith('"'):
-				self.print_prop("patch texture: ", token)
+				# self.print_prop("patch texture: ", token)
 				self.curr_patch.texture = token[1:-1]
 			elif token == '}':
 				self.curr_ent.patches.append(self.curr_patch)
 				self.curr_patch = None
 				self.set_scope(Scope.Def)
 
+		elif self.scope == Scope.File:   # this branch is the most infrequent, keep it last
+			# self.print_scope("Scope.File", token)
+
+			if token == '{':
+				self.curr_ent = Entity()
+				self.set_scope(Scope.Entity)
+
+
 	def parse(self, map_file):
 		self.curr_map = MapData()
 		self.maps.append(self.curr_map)
 
-		echo(f"\nParsing map '{os.path.basename(map_file)}'...", end="")
+		echo(f"\nParsing map '{os.path.basename(map_file)}' ...", end="")
 
 		t1 = time.time()
 		with open(map_file, 'r') as file:
+
 			for line in file:
 				line = line.replace('\n', '')
-				line = line.replace('\t', '')
+				# line = line.replace('\t', '')
 
-				tokens = line.split(' ')
-				if tokens[0] in ["//", "Version"] : continue
+				line_start = line[0]
 
-				# if it's a vector value it contain spaces, so undo their split
-				if len(tokens) > 2 and tokens[1].startswith('"'):
-					tokens = [tokens[0], " ".join(tokens[1:])]
+				if line_start == '(':
+					# when it's brush or patch, skip the faces
+					if "textures" in line:  # brush
+						q1 = line.find('"')
+						q2 = line.rfind('"')
+						tokens = [ line[q1:q2+1] ]
+					else:                   # patch
+						continue
+				elif line_start == '"':
+					tokens = line.split(maxsplit=1)
+				elif line_start != '/':
+					tokens = [line]
+				else:  # comments
+					continue
 
 				for t in tokens:
 					self.parse_token(t)
