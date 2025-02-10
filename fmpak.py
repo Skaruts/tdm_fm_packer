@@ -15,16 +15,32 @@ import zipfile as zipf
 import argparse as ap
 from enum import Enum
 
+
 echo = print  # just to differentiate from debug prints
+
 
 VERSION = "0.6"
 PKIGNORE_FILENAME = ".pkignore"
 MODFILE_FILENAME = "darkmod.txt"
 
+VALID_MODEL_FORMATS = ["ase", "lwo", "obj"]  # TODO: is obj ever used?
+
 INVALID_CHARS = [' ',
 	'(', ')', '{', '}', '[', ']', '|', '!', '@', '#', '$', '%', '^', '&',
 	'*', ',', '+', '-', '"', '\'', ':', ';', '?', '<', '>', '`', '~', '/'
 ]
+
+VALID_UNUSED_MATERIALS = [
+	"guis/assets/purchase_menu/map_of"
+]
+
+# make sure to exclude any meta stuff
+ignored_folders = set(["savegames", "__pycache__", ".git"])
+ignored_files = set([
+	PKIGNORE_FILENAME, ".lin", "bak", ".log", ".dat", ".py", ".pyc",
+	".pk4", ".zip", ".7z", ".rar", ".gitignore", ".gitattributes"
+])
+
 
 class FileGroup:
 	def __init__(self, files, dir_count, file_count):
@@ -38,14 +54,6 @@ class mission: # data class to avoid using 'global'
 	included : FileGroup
 	excluded : FileGroup
 	map_names = []
-
-# make sure to exclude any meta stuff
-ignored_folders = set(["savegames", "__pycache__", ".git"])
-ignored_files = set([
-	PKIGNORE_FILENAME, ".lin", "bak", ".log", ".dat", ".py", ".pyc",
-	".pk4", ".zip", ".7z", ".rar", ".gitignore", ".gitattributes"
-])
-
 
 class MissionFile:
 	def __init__(self, fullpath, relpath):
@@ -101,21 +109,17 @@ def validate_fm_path():
 		warning(f"mission directory name contains upppercase characters")
 
 
-def get_files_in_dir(dir_path:str, filters:list = []):
+def get_files_in_dir(dir_path:str, inclusive_filters:list=[]):
 	files = list()
 
 	for name in os.listdir(dir_path):
 		filepath = os.path.join(dir_path, name)#.encode("utf-8")
-		_, file_ext = os.path.splitext(filepath)
-		if os.path.isfile(filepath):
-			is_valid = True
-			for filter in filters:
-				if filter in name:
-					is_valid = False
-					break
+		if not os.path.isfile(filepath): continue
 
-			if is_valid:
+		for filter in inclusive_filters:
+			if filter in name:
 				files.append(filepath)
+				break
 
 	return files
 
@@ -220,6 +224,7 @@ def gather_files():
 	# print(f"\n       included {num_inc_dirs} dirs, {num_inc_files} files  | {len(inc)}" )
 	# print(f"\n       excluded {num_exc_dirs} dirs, {num_exc_files} files  | {len(exc)}" )
 	# print(f"\n       total {num_inc_dirs+num_exc_dirs} dirs, {num_inc_files+num_exc_files} files  | {len(inc)+len(exc)}" )
+
 
 
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
@@ -346,14 +351,19 @@ def get_all_properties_named(prop):
 				})
 	return props
 
-VALID_MODEL_FORMATS = ["ase", "lwo", "obj"]  # TODO: is obj ever used?
+
+def parse_maps():
+	echo(f"\nParsing maps")
+	for map in mission.map_names:
+		filepath = os.path.join(mission.path, "maps", map + ".map")
+		map_parser.parse(filepath)
+
 
 def validate_models():
 	prop_vals = [ p["value"] for p in get_all_properties_named("model") ]
 	model_files = [ f.relpath.replace('\\', '/') for f in mission.included.files if "models" in f.fullpath]
 
 	invalid_models = []
-
 	for f in model_files:
 		if not f in prop_vals:
 			invalid_models.append(f)
@@ -362,18 +372,60 @@ def validate_models():
 		echo("\n  There are some unused models:\n")
 		for m in invalid_models:
 			echo(f"      {m}")
-
 		echo(f"\n  {len(invalid_models)} unused models\n")
-
 	else:
 		echo("\n  There are no unused models.\n")
 
 
-def parse_maps():
-	echo(f"Parsing maps")
-	for map in mission.map_names:
-		filepath = os.path.join(mission.path, "maps", map + ".map")
-		map_parser.parse(filepath)
+def parse_materials():
+	mat_files = get_files_in_dir(os.path.join(mission.path, "materials"), [".mtr"])
+	materials_defs = []
+	for mf in mat_files:
+		scope_level = 0
+		with open(mf, 'r') as file:
+			for line in file:
+				line = line.replace('\n', '').replace('\t', '')
+				if line == "": continue
+
+				line_start = line[0]
+
+				if   line_start == '{': scope_level += 1
+				elif line_start == '}': scope_level -= 1
+				elif line_start == '/': continue
+				elif scope_level == 0:  materials_defs.append(line)
+
+	return materials_defs
+
+
+def is_material_in_maps(mat):
+	for map in map_parser.maps:
+ 		for e in map.entities:
+ 			if mat in e.materials:
+ 				return True
+	return False
+
+
+def validate_materials():
+	mats = parse_materials()
+	unused = []
+	task(f"Checking materials ... ")
+
+	for m in mats:
+	 	if  not is_material_in_maps(m) \
+	 	and not m in VALID_UNUSED_MATERIALS:
+	 		unused.append(m)
+
+	if len(unused) > 0:
+		echo(f"Some materials were not found in the maps")
+		echo(f"(Note: this may not mean they're unused)\n")
+		for m in unused:
+			echo(f"    {m}")
+
+		echo(f"\n  {len(unused)} materials")
+
+	else:
+		echo(f"  All Ok")
+
 
 def validate_mission_files(arg):
 	if arg == "paths":
@@ -384,11 +436,13 @@ def validate_mission_files(arg):
 		if   arg == "all":
 			validate_filepaths()
 			validate_models()
+			validate_materials()
 		elif arg == "models":
 			validate_models()
+		elif arg == "materials":
+			validate_materials()
 		# elif arg == "files":     pass
 		# elif arg == "sounds":    pass
-		# elif arg == "materials": pass
 		# elif arg == "guis":      pass
 		# elif arg == "scripts":   pass
 		# elif arg == "skins":     pass
@@ -504,12 +558,6 @@ def check_entities_properties(ents, props):
 
 
 
-
-
-
-
-
-
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 # 		MAP PARSER
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
@@ -532,6 +580,7 @@ class Entity:
 		self.properties = {}
 		self.brushes = []
 		self.patches = []
+		self.materials = set()
 
 class Property:
 	def __init__(self, name, value):
@@ -540,11 +589,11 @@ class Property:
 
 class Brush:
 	def __init__(self):
-		self.textures = []
+		self.materials = set()
 
 class Patch:
 	def __init__(self):
-		self.texture = ""
+		self.material = ""
 
 class MapData:
 	def __init__(self):
@@ -620,7 +669,9 @@ class MapParser:
 		elif self.scope == Scope.BrushDef3:
 			if token.startswith('"'):
 				# self.print_prop("brush texture: ", token)
-				self.curr_brush.textures.append(token[1:-1])
+				mat = token[1:-1]
+				self.curr_brush.materials.add(mat)
+				self.curr_ent.materials.add(mat)
 			elif token == '}':
 				self.curr_ent.brushes.append(self.curr_brush)
 				self.curr_brush = None
@@ -629,7 +680,9 @@ class MapParser:
 		elif self.scope == Scope.PatchDef3:
 			if token.startswith('"'):
 				# self.print_prop("patch texture: ", token)
-				self.curr_patch.texture = token[1:-1]
+				mat = token[1:-1]
+				self.curr_patch.material = mat
+				self.curr_ent.materials.add(mat)
 			elif token == '}':
 				self.curr_ent.patches.append(self.curr_patch)
 				self.curr_patch = None
@@ -689,7 +742,6 @@ class MapParser:
 
 
 
-
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 # 		run
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
@@ -711,7 +763,7 @@ if __name__ == "__main__":
 	parser.add_argument("-i", "--included", type=str, const='.', nargs='?', metavar="path", help="list files to include in pk4 within 'path' without packing them, where 'path' is a relative path (if ommitted, the mission path is used)")
 	parser.add_argument("-e", "--excluded", type=str, const='.', nargs='?', metavar="path", help="list files to exclude from pk4 within 'path' without packing them, where 'path' is a relative path (if ommitted, the mission path is used)")
 
-	parser.add_argument("--validate", type=str, choices=["all", "paths", "models"], help="validate the mission")
+	parser.add_argument("--validate", type=str, choices=["all", "paths", "models", "materials"], help="validate the mission")
 	parser.add_argument("-cn", "--check_named", metavar="[n, p v, ...]", type=str, help="check if properties [p] exist in entity named [n] with values [v]. E.g. -cn \"master_key, nodrop 1, inv_droppable 1\"")
 	parser.add_argument("-cc", "--check_class", metavar="[c, p v, ...]", type=str, help="check if properties [p] exist in entities of classname [n] with values [v]. E.g. -cn \"atdm:key*, nodrop 1, inv_droppable 1\"")
 
