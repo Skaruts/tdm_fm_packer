@@ -648,11 +648,12 @@ class Scope(Enum):
 	Entity        = "Scope.Entity"
 	Property      = "Scope.Property"
 	Def           = "Scope.Def"
-	BrushDef     = "Scope.BrushDef"
-	PatchDef     = "Scope.PatchDef"
+	BrushDef      = "Scope.BrushDef"
+	PatchDef      = "Scope.PatchDef"
 
 class Entity:
-	def __init__(self):
+	def __init__(self, id):
+		self.id        = id
 		self.classname = ""
 		self.name      = ""
 		self.properties = {}
@@ -666,11 +667,13 @@ class Property:
 		self.value = value
 
 class Brush:
-	def __init__(self):
+	def __init__(self, id):
+		self.id = id
 		self.materials = set()
 
 class Patch:
-	def __init__(self):
+	def __init__(self, id):
+		self.id = id
 		self.material = ""
 
 class MapData:
@@ -686,6 +689,9 @@ class MapParser:
 		self.curr_patch = None
 		self.maps = []
 		self.curr_map = None
+
+		self.curr_primitive_id  = -1
+		self.curr_entity_id     = -1
 
 	def set_scope(self, scope):
 		if debug_show_scopes: print(">", scope)
@@ -707,13 +713,13 @@ class MapParser:
 	def parse_token(self, token):
 		if self.scope == Scope.Entity:
 			# self.print_scope("Scope.Entity", token)
-
 			if token.startswith('"'):
 				self.prop = token[1:-1]
 				self.set_scope(Scope.Property)
 			elif token == '{':
 				self.set_scope(Scope.Def)
 			elif token == '}':
+				# commit entity
 				self.curr_map.entities.append(self.curr_ent)
 				self.curr_ent = None
 				# self.print_prop("----------------------", "")
@@ -721,24 +727,21 @@ class MapParser:
 
 		elif self.scope == Scope.Def:
 			# self.print_scope("Scope.Def", token)
-
-				self.curr_brush = Brush()
-				self.set_scope(Scope.BrushDef3)
-				self.curr_patch = Patch()
-				self.set_scope(Scope.PatchDef3)
 			if   token.startswith("brushDef"):
+				self.curr_brush = Brush(self.curr_primitive_id)
+				self.set_scope(Scope.BrushDef)
 			elif token.startswith("patchDef"):
+				self.curr_patch = Patch(self.curr_primitive_id)
+				self.set_scope(Scope.PatchDef)
 			elif token == '}':
 				self.set_scope(Scope.Entity)
 
 		elif self.scope == Scope.Property:
 			# self.print_scope("Scope.Property", token)
-
 			if token.startswith('"'):
 				val = token[1:-1]
 				if   self.prop == "classname": self.curr_ent.classname = val
 				elif self.prop == "name":      self.curr_ent.name = val
-
 				# self.print_prop(self.prop, val)
 				self.curr_ent.properties[self.prop] = val
 				self.prop = None
@@ -751,6 +754,7 @@ class MapParser:
 				self.curr_brush.materials.add(mat)
 				self.curr_ent.materials.add(mat)
 			elif token == '}':
+				# commit brush
 				self.curr_ent.brushes.append(self.curr_brush)
 				self.curr_brush = None
 				self.set_scope(Scope.Def)
@@ -762,15 +766,15 @@ class MapParser:
 				self.curr_patch.material = mat
 				self.curr_ent.materials.add(mat)
 			elif token == '}':
+				# commit patch
 				self.curr_ent.patches.append(self.curr_patch)
 				self.curr_patch = None
 				self.set_scope(Scope.Def)
 
 		elif self.scope == Scope.File:   # this branch is the most infrequent, keep it last
 			# self.print_scope("Scope.File", token)
-
 			if token == '{':
-				self.curr_ent = Entity()
+				self.curr_ent = Entity(self.curr_entity_id)
 				self.set_scope(Scope.Entity)
 
 
@@ -805,6 +809,12 @@ class MapParser:
 				elif line_start != '/':
 					tokens = [line]
 				else:  # comments
+					if line.startswith("// entity"):
+						assert self.scope == Scope.File, line
+						self.curr_entity_id += 1
+					elif line.startswith("// primitive"):
+						assert self.scope == Scope.Entity, line
+						self.curr_primitive_id += 1
 					continue
 
 				for t in tokens:
