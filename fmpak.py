@@ -41,6 +41,12 @@ ignored_files = set([
 	".pk4", ".zip", ".7z", ".rar", ".gitignore", ".gitattributes"
 ])
 
+REPORT_HEADER = "\n\n  Some {} were not found in the maps\n"  # .format(name)
+REPORT_HEADER_NONL = "\n\n  Some {} were not found in the maps"  # .format(name)
+REPORT_OBJECT = "      {}"    # .format(object)
+REPORT_COUNT  = "\n  {} {}\n"   # .format(amount, name)
+REPORT_OK     = "  All Ok"
+
 
 class FileGroup:
 	def __init__(self, files, dir_count, file_count):
@@ -309,36 +315,44 @@ def create_pk_ignore(csv):
 
 
 def validate_filepaths():
-	name_msg = ""
 	invalid_filespaths = []
 
 	task("Checking filepaths ...")
 
+	name_report = ""
+	mission_name_has_uppercase = any(char.isupper() for char in mission.name)
+	if mission_name_has_uppercase:
+		name_report = f"      mission name '{mission.name}' contains uppercase letters"
+
 	for c in INVALID_CHARS:
 		if c in mission.name:
-			name_msg = f"      mission name: {mission.name}"
+			if name_report != "": name_report += " and spaces or special symbols"
+			else:                 name_report = f"      mission name '{mission.name}' contanins spaces or special symbols"
+			break
 
 	for f in mission.included.files:
 		for c in INVALID_CHARS:
 			if c in f.relpath:
 				invalid_filespaths.append(f.relpath)
+				break
 
-	if name_msg != "" or len(invalid_filespaths) > 0:
-		echo("\n  Some paths contain spaces or invalid chars:\n")
-		if name_msg != "":
-			echo(name_msg + "\n")
-
-		for ifp in invalid_filespaths:
-			echo(f"      {ifp}")
-
+	if name_report != "" or len(invalid_filespaths) > 0:
 		num_inv_paths = len(invalid_filespaths)
-		if name_msg != "":
-			num_inv_paths += 1
-		echo(f"\n  {num_inv_paths} invalid paths\n")
-		echo("\n  Avoid using any of:" + " ".join(INVALID_CHARS)[1:] )
-	else:
-		echo(" All OK.\n")
+		echo("\n\n  Some paths contain spaces or special symbols\n")
 
+		if name_report != "":
+			num_inv_paths += 1
+			echo(name_report + "\n")
+
+		for inv_path in invalid_filespaths:
+			echo( REPORT_OBJECT.format(inv_path) )
+
+		echo(f"\n  {num_inv_paths} invalid paths." + "\n  Avoid using any of:" + " ".join(INVALID_CHARS)[1:])
+		# echo( REPORT_COUNT.format(num_inv_paths, "invalid paths"))
+		# echo("\n  Avoid using any of:" + " ".join(INVALID_CHARS)[1:] )
+	else:
+		# echo(" All OK.\n")
+		echo(REPORT_OK)
 
 def get_all_properties_named(prop):
 	props = []
@@ -353,7 +367,7 @@ def get_all_properties_named(prop):
 
 
 def parse_maps():
-	echo(f"\nParsing maps")
+	echo("Parsing maps")
 	for map in mission.map_names:
 		filepath = os.path.join(mission.path, "maps", map + ".map")
 		map_parser.parse(filepath)
@@ -363,18 +377,21 @@ def validate_models():
 	prop_vals = [ p["value"] for p in get_all_properties_named("model") ]
 	model_files = [ f.relpath.replace('\\', '/') for f in mission.included.files if "models" in f.fullpath]
 
-	invalid_models = []
+	task("Checking models ... ")
+
+	unused = []
 	for f in model_files:
 		if not f in prop_vals:
-			invalid_models.append(f)
+			unused.append(f)
 
-	if len(invalid_models) > 0:
-		echo("\n  There are some unused models:\n")
-		for m in invalid_models:
-			echo(f"      {m}")
-		echo(f"\n  {len(invalid_models)} unused models\n")
+	if len(unused) > 0:
+		echo( REPORT_HEADER.format("models") )
+		# echo("\n  (This may not mean they're unused)\n")
+		for o in unused:
+			echo( REPORT_OBJECT.format(o) )
+		echo( REPORT_COUNT.format(len(unused), "models"))
 	else:
-		echo("\n  There are no unused models.\n")
+		echo(REPORT_OK)
 
 
 def parse_materials():
@@ -408,7 +425,7 @@ def is_material_in_maps(mat):
 def validate_materials():
 	mats = parse_materials()
 	unused = []
-	task(f"Checking materials ... ")
+	task("Checking materials ... ")
 
 	for m in mats:
 	 	if  not is_material_in_maps(m) \
@@ -416,15 +433,13 @@ def validate_materials():
 	 		unused.append(m)
 
 	if len(unused) > 0:
-		echo(f"Some materials were not found in the maps")
-		echo(f"(Note: this may not mean they're unused)\n")
-		for m in unused:
-			echo(f"    {m}")
-
-		echo(f"\n  {len(unused)} materials")
-
+		echo( REPORT_HEADER_NONL.format("materials") )
+		echo("  (This may not mean they're unused)\n")
+		for o in unused:
+			echo( REPORT_OBJECT.format(o) )
+		echo( REPORT_COUNT.format(len(unused), "materials"))
 	else:
-		echo(f"  All Ok")
+		echo(REPORT_OK)
 
 
 def validate_mission_files(arg):
@@ -772,6 +787,8 @@ if __name__ == "__main__":
 	if args.quick_help:
 		print_quick_help()
 		exit()
+
+	echo() # leave an empty line between the last prompt
 
 	if args.pkset:
 		echo("Previous .pkignore:\n\t", get_pkignore_csv())
