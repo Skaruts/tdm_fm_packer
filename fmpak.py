@@ -317,7 +317,7 @@ def create_pk_ignore(csv):
 def validate_filepaths():
 	invalid_filespaths = []
 
-	task("Checking filepaths ...")
+	task("Checking filepaths...")
 
 	name_report = ""
 	mission_name_has_uppercase = any(char.isupper() for char in mission.name)
@@ -348,11 +348,9 @@ def validate_filepaths():
 			echo( REPORT_OBJECT.format(inv_path) )
 
 		echo(f"\n  {num_inv_paths} invalid paths." + "\n  Avoid using any of:" + " ".join(INVALID_CHARS)[1:])
-		# echo( REPORT_COUNT.format(num_inv_paths, "invalid paths"))
-		# echo("\n  Avoid using any of:" + " ".join(INVALID_CHARS)[1:] )
 	else:
-		# echo(" All OK.\n")
 		echo(REPORT_OK)
+
 
 def get_all_properties_named(prop):
 	props = []
@@ -377,7 +375,7 @@ def validate_models():
 	prop_vals = [ p["value"] for p in get_all_properties_named("model") ]
 	model_files = [ f.relpath.replace('\\', '/') for f in mission.included.files if "models" in f.fullpath]
 
-	task("Checking models ... ")
+	task("Checking models... ")
 
 	unused = []
 	for f in model_files:
@@ -416,21 +414,25 @@ def parse_materials():
 
 def is_material_in_maps(mat):
 	for map in map_parser.maps:
- 		for e in map.entities:
- 			if mat in e.materials:
- 				return True
+		for e in map.entities:
+			if mat in e.materials:
+				return True
 	return False
 
 
 def validate_materials():
 	mats = parse_materials()
 	unused = []
-	task("Checking materials ... ")
+	task("Checking materials... ")
+
+	if len(unused) == 0:
+		echo(" no custom materials found.")
+		return
 
 	for m in mats:
-	 	if  not is_material_in_maps(m) \
-	 	and not m in VALID_UNUSED_MATERIALS:
-	 		unused.append(m)
+		if  not is_material_in_maps(m) \
+		and not m in VALID_UNUSED_MATERIALS:
+			unused.append(m)
 
 	if len(unused) > 0:
 		echo( REPORT_HEADER_NONL.format("materials") )
@@ -438,6 +440,66 @@ def validate_materials():
 		for o in unused:
 			echo( REPORT_OBJECT.format(o) )
 		echo( REPORT_COUNT.format(len(unused), "materials"))
+	else:
+		echo(REPORT_OK)
+
+def parse_skins():
+	skin_files = get_files_in_dir(os.path.join(mission.path, "skins"), [".skin"])
+	skin_defs = {}
+	for path in skin_files:
+		scope_level = 0
+		skin_defs[path] = []
+		with open(path, 'r') as file:
+			for line in file:
+				line = line.replace('\n', '').replace('\t', '')
+				if line == "": continue
+
+				line_start = line[0]
+
+				if   line_start == '{': scope_level += 1
+				elif line_start == '}': scope_level -= 1
+				elif line_start == '/': continue
+				elif scope_level == 0:
+					if   line.startswith("skin "):  line = line.replace("skin ", '')
+					elif line.startswith("skin\t"): line = line.replace("skin\t", '')
+					skin_defs[path].append(line)
+	return skin_defs
+
+
+def is_skin_in_maps(skin_def):
+	for map in map_parser.maps:
+		for e in map.entities:
+			if not "skin" in e.properties: continue
+			if e.properties["skin"] == skin_def:
+				return True
+	return False
+
+
+def validate_skins():
+	# Don't report unused individual skins, report files with no skins used
+	# (a file may bundle skins that are not all in use)
+	skins_dic = parse_skins()
+	unused_files = []
+	task("Checking skin files... ")
+
+	if len(skins_dic) == 0:
+		echo(" no custom skins found.")
+		return
+
+	for filepath in skins_dic:
+		skins_list = skins_dic[filepath]
+		num_unused = 0
+		for skin in skins_list:
+		 	if not is_skin_in_maps(skin):
+		 		num_unused += 1
+		if num_unused == len(skins_list):
+		 	unused_files.append(filepath.replace(mission.path, '')[1:])
+
+	if len(unused_files) > 0:
+		echo("\n\n  Some skin files have no skins found in the maps\n")
+		for f in unused_files:
+			echo( REPORT_OBJECT.format(f) )
+		echo( REPORT_COUNT.format(len(unused_files), "skin files"))
 	else:
 		echo(REPORT_OK)
 
@@ -456,11 +518,12 @@ def validate_mission_files(arg):
 			validate_models()
 		elif arg == "materials":
 			validate_materials()
+		elif arg == "skins":
+			validate_skins()
 		# elif arg == "files":     pass
 		# elif arg == "sounds":    pass
 		# elif arg == "guis":      pass
 		# elif arg == "scripts":   pass
-		# elif arg == "skins":     pass
 		# elif arg == "dds":       pass
 		# elif arg == "particles": pass
 
@@ -537,7 +600,7 @@ def check_entity_properties_by(attr, check_args):
 	attr_name = args[0]
 	props = [ args[i].split(' ') for i in range(1, len(args)) ] # args[1:]
 
-	task(f"Checking properties from '{attr_name}' entities ... ")
+	task(f"Checking properties from '{attr_name}' entities... ")
 
 	ents = get_entities_by(attr, attr_name)
 
@@ -715,7 +778,7 @@ class MapParser:
 		self.curr_map = MapData()
 		self.maps.append(self.curr_map)
 
-		task(f"    '{os.path.basename(map_file)}' ...")
+		task(f"    '{os.path.basename(map_file)}'...")
 
 		t1 = time.time()
 		with open(map_file, 'r') as file:
@@ -778,7 +841,7 @@ if __name__ == "__main__":
 	parser.add_argument("-i", "--included", type=str, const='.', nargs='?', metavar="path", help="list files to include in pk4 within 'path' without packing them, where 'path' is a relative path (if ommitted, the mission path is used)")
 	parser.add_argument("-e", "--excluded", type=str, const='.', nargs='?', metavar="path", help="list files to exclude from pk4 within 'path' without packing them, where 'path' is a relative path (if ommitted, the mission path is used)")
 
-	parser.add_argument("--validate", type=str, choices=["all", "paths", "models", "materials"], help="validate the mission")
+	parser.add_argument("--validate", type=str, choices=["all", "paths", "models", "materials", "skins"], help="validate the mission")
 	parser.add_argument("-cn", "--check_named", metavar="[n, p v, ...]", type=str, help="check if properties [p] exist in entity named [n] with values [v]. E.g. -cn \"master_key, nodrop 1, inv_droppable 1\"")
 	parser.add_argument("-cc", "--check_class", metavar="[c, p v, ...]", type=str, help="check if properties [p] exist in entities of classname [n] with values [v]. E.g. -cn \"atdm:key*, nodrop 1, inv_droppable 1\"")
 
