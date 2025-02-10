@@ -425,7 +425,7 @@ def validate_materials():
 	unused = []
 	task("Checking materials... ")
 
-	if len(unused) == 0:
+	if len(mats) == 0:
 		echo(" no custom materials found.")
 		return
 
