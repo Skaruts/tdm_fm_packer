@@ -177,7 +177,7 @@ def add_ignored_maps():
 				continue
 
 			for name in mission.map_names:
-				if not f.startswith(name):
+				if not f.startswith(name + '.' ):
 					ignored_files.add(f)
 
 
