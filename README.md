@@ -74,38 +74,46 @@ Some files and folders are automatically excluded by the script:
 - #### `--pkset`
 	Creates a .pkignore file with the given comma- or space-separated filters - may be needed to enclose them in quotes.
 	```
-	fmpak.py . --pk_set "sources/, .blend, some_file.txt"
+	fmpak.py . --pkset "sources/, .blend, some_file.txt"
 	```
 - #### `--pkget`
 	Shows the current content of the .pkignore file as csv filters.
 	```
-	fmpak.py . --pk_get
+	fmpak.py . --pkget
 	```
 
 ### Validating / Checking Files
 
-- #### `--validate [all | paths | models]`
-	Used to check for problems in the paths and unused files.
-	- **paths** - checks all file paths for spaces or special characters that can cause problems.
-	- **models** - checks for 3d models that not being used by any of the maps in the map sequence.
-	- **all** - does all of the above.
+- #### `--validate [all | paths | files | models | materials | skins | particles]`
+	Checks for unused files or problems in the mission files.
+	- **paths** - reports all file paths that contain spaces or special characters that can cause problems.
+	- **files** - reports missing files that are mandatory, or which you might want to have in the mission.
+	- **models** - reports 3d models not in use by the maps in the map sequence.
+	- **materials** - reports material definitions not in use by the maps in the map sequence.
+	- **skins** - reports skin files that contain no definitions in use by the maps in the map sequence.
+	- **particles** - reports particle definitions not in use by the maps in the map sequence.
+	- **all** - does all of the above in one go.
 	```
 	fmpak.py . --validate paths
 	```
 
 - #### `-cn | --check_named [name, prop1 val1, prop2 val2, ...]`
-	Checks whether an entity named `name` contains the given properties with the given values.
+	Checks whether entities named `name` contain the given properties with the given values. If the property values are different they get reported.
 
-	Name and properties need to be all contained in one string argument, separated by commas (values separated by spaces).
+	The name and properties need to be all contained in one string argument, separated by commas, and the property values separated by spaces.
+
+	Supports `*` for checking several different names at once.
 
 	```
-	fmpak.py . -cn "key_master, inv_map_start 0, nodrop 1, inv_droppable 0"
+	fmpak.py . -cn "*key*, inv_map_start 0, nodrop 1, inv_droppable 0"
 	```
 
 - #### `-cc | --check_class [classname, prop1 val1, prop2 val2, ...]`
-	Checks whether entities with classname `class` contain the given properties with the given values.
+	Checks whether entities with classname `classname` contain the given properties with the given values. If the property values are different they get reported.
 
-	Syntax is the same as `--check_named`, except it supports `*` for checking several different classnames at once.
+	The classname and properties need to be all contained in one string argument, separated by commas, and the property values separated by spaces.
+
+	Supports `*` for checking several different names at once.
 
 	```
 	fmpak.py . -cc "atdm:key_*, inv_droppable 1"
