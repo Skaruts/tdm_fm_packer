@@ -20,8 +20,6 @@ echo = print  # just to differentiate from debug prints
 
 
 VERSION = "0.6"
-PKIGNORE_FILENAME = ".pkignore"
-MODFILE_FILENAME = "darkmod.txt"
 
 VALID_MODEL_FORMATS = ["*.ase", "*.lwo", "*.obj"]  # TODO: is obj ever used?
 
@@ -34,18 +32,25 @@ VALID_UNUSED_MATERIALS = [
 	"guis/assets/purchase_menu/map_of"
 ]
 
+REPORT_HEADER = "\n\n  Some {} were not found in the maps\n"  # .format(name)
+REPORT_HEADER_NONL = "\n\n  Some {} were not found in the maps"  # .format(name)
+REPORT_OBJECT = "      {}"    # .format(object)
+REPORT_COUNT  = "\n  {} {}\n"   # .format(amount, name)
+REPORT_OK     = "all Ok"
+
+PKIGNORE_FILENAME    = ".pkignore"
+MODFILE_FILENAME     = "darkmod.txt"
+README_FILENAME      = "readme.txt"
+STARTMAP_FILENAME    = "startingmap.txt"
+MAPSEQUENCE_FILENAME = "tdm_mapsequence.txt"
+BRIEFING_FILENAME    = "xdata/briefing.xd"
+
 # make sure to exclude any meta stuff
 ignored_folders = set(["savegames", "__pycache__", ".git"])
 ignored_files = set([
 	PKIGNORE_FILENAME, ".lin", "bak", ".log", ".dat", ".py", ".pyc",
 	".pk4", ".zip", ".7z", ".rar", ".gitignore", ".gitattributes"
 ])
-
-REPORT_HEADER = "\n\n  Some {} were not found in the maps\n"  # .format(name)
-REPORT_HEADER_NONL = "\n\n  Some {} were not found in the maps"  # .format(name)
-REPORT_OBJECT = "      {}"    # .format(object)
-REPORT_COUNT  = "\n  {} {}\n"   # .format(amount, name)
-REPORT_OK     = "  All Ok"
 
 
 class FileGroup:
@@ -393,7 +398,7 @@ def validate_filepaths():
 
 
 def parse_maps():
-	echo("Parsing maps")
+	# echo("Parsing maps")
 	for map in mission.map_names:
 		filepath = os.path.join(mission.path, "maps", map + ".map")
 		map_parser.parse(filepath)
@@ -403,6 +408,10 @@ def validate_models():
 	task("Checking models... ")
 	model_files = get_files_in_dir_recursive(os.path.join(mission.path, "models"), VALID_MODEL_FORMATS)
 	model_files = [ f.replace(mission.path, '')[1:].replace('\\', '/') for f in model_files ]
+
+	if len(model_files) == 0:
+		echo(" no custom models found.")
+		return
 
 	used_models = get_property_values("model")
 	unused = []
@@ -493,8 +502,8 @@ def parse_skins():
 				elif scope_level == 0:
 					if   line.startswith("skin "):  line = line.replace("skin ", '')
 					elif line.startswith("skin\t"): line = line.replace("skin\t", '')
-					skin_defs[path].append(line)
-	return skin_defs
+					defs[path].append(line)
+	return defs
 
 
 def validate_skins():
@@ -573,26 +582,75 @@ def validate_particles():
 	else:
 		echo(REPORT_OK)
 
+# TODO
+RECOMMENDED_FILES = [
+	"guis/assets/purchase_menu/map_of.tga",
+	"guis/map_of.gui",
+	# TODO: maybe check 'guis/map/*.gui' files with same name as the used maps
+]
+
+def validate_files():
+	task("Checking mission files... ")
+
+	# first pass for basic mission files
+	files_to_check = [
+		MODFILE_FILENAME,
+		README_FILENAME,
+		STARTMAP_FILENAME,
+		BRIEFING_FILENAME,
+	]
+
+	missing_files = [ f
+		for f in files_to_check
+			if not os.path.isfile(os.path.join(mission.path, f))]
+
+	if STARTMAP_FILENAME in missing_files and len(mission.map_names) > 0:
+		missing_files.remove(STARTMAP_FILENAME)
+
+	# second pass for other files that are recommended or require special treatment
+	files_to_check = RECOMMENDED_FILES
+
+	missing_files += [ f
+		for f in files_to_check
+			if not os.path.isfile(os.path.join(mission.path, f))]
+
+	if len(missing_files) > 0:
+		echo("\n\n  Some required or recommended files are missing\n")
+		# echo("  (Some are just suggestions, not all files are strictly required.)\n")
+		for p in missing_files:
+			echo( REPORT_OBJECT.format(p) )
+		echo( REPORT_COUNT.format(len(missing_files), "missing files"))
+	else:
+		echo(REPORT_OK)
+
+
+VALIDATION_PARAMS = [
+	"paths",
+	"files",
+	"models",
+	"materials",
+	"skins",
+	"particles",
+]
+
+_validate_funcs = {
+	"paths"     : validate_filepaths,
+	"files"     : validate_files,
+	"models"    : validate_models,
+	"materials" : validate_materials,
+	"skins"     : validate_skins,
+	"particles" : validate_particles,
+}
 
 def validate_mission_files(arg):
-	if arg == "paths":
-		validate_filepaths()
-	else:
+	if not arg in ["paths", "files"]:
 		parse_maps()
 
-		if   arg == "all":
-			validate_filepaths()
-			validate_models()
-			validate_materials()
-		elif arg == "models":    validate_models()
-		elif arg == "materials": validate_materials()
-		elif arg == "skins":     validate_skins()
-		elif arg == "particles": validate_particles()
-		# elif arg == "files":     pass
-		# elif arg == "sounds":    pass
-		# elif arg == "guis":      pass
-		# elif arg == "scripts":   pass
-		# elif arg == "dds":       pass
+	if arg == "all":
+		for string in VALIDATION_PARAMS:
+			_validate_funcs[string]()
+	else:
+		_validate_funcs[arg]()
 
 
 def get_entities_named(name):
@@ -652,7 +710,7 @@ def check_entity_properties_by(attr, check_args):
 					echo(f"        {e.name:<30} {e.classname}")
 			echo(f"\n\n  {len(inv_ents)} entities differ\n")
 		else:
-			echo(f"  All OK")
+			echo(f"all OK")
 
 
 def check_entities_properties(ents, props):
@@ -814,7 +872,7 @@ class MapParser:
 		self.curr_map = MapData()
 		self.maps.append(self.curr_map)
 
-		task(f"    '{os.path.basename(map_file)}'...")
+		# task(f"    '{os.path.basename(map_file)}'...")
 
 		t1 = time.time()
 		with open(map_file, 'r') as file:
@@ -842,7 +900,7 @@ class MapParser:
 					tokens = [line]
 				else:  # comments
 					parts = line.split()
-					curr_id = int(parts[3])
+					curr_id = int(parts[2])
 					if parts[1] == "entity":
 						assert self.scope == Scope.File, line
 						self.curr_entity_id = curr_id
@@ -856,7 +914,7 @@ class MapParser:
 
 		t2 = time.time()
 		total_time = "{:.1f}".format(t2-t1)
-		echo(f" ({total_time} secs)\n")
+		# echo(f" ({total_time} secs)\n")
 
 		assert(self.scope      == Scope.File)
 		assert(self.prop       == None)
@@ -887,7 +945,7 @@ if __name__ == "__main__":
 	parser.add_argument("-i", "--included", type=str, const='.', nargs='?', metavar="path", help="list files to include in pk4 within 'path' without packing them, where 'path' is a relative path (if ommitted, the mission path is used)")
 	parser.add_argument("-e", "--excluded", type=str, const='.', nargs='?', metavar="path", help="list files to exclude from pk4 within 'path' without packing them, where 'path' is a relative path (if ommitted, the mission path is used)")
 
-	parser.add_argument("--validate", type=str, choices=["all", "paths", "models", "materials", "skins", "particles"], help="validate the mission")
+	parser.add_argument("--validate", type=str, choices=["all"] + VALIDATION_PARAMS, help="validate the mission")
 	parser.add_argument("-cn", "--check_named", metavar="[n, p v, ...]", type=str, help="check if properties [p] exist in entity named [n] with values [v]. E.g. -cn \"master_key, nodrop 1, inv_droppable 1\"")
 	parser.add_argument("-cc", "--check_class", metavar="[c, p v, ...]", type=str, help="check if properties [p] exist in entities of classname [n] with values [v]. E.g. -cn \"atdm:key*, nodrop 1, inv_droppable 1\"")
 
