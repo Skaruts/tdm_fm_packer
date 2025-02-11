@@ -897,7 +897,7 @@ if __name__ == "__main__":
 	if args.pkset:
 		echo("Previous .pkignore:\n\t", get_pkignore_csv())
 		create_pk_ignore(args.pkset)
-		echo("\nNew .pkignore:\n\t", get_pkignore_csv())
+		echo(f"\nNew .pkignore:\n\t{get_pkignore_csv()}\n")
 		exit()
 
 	if args.pkget:
