@@ -836,12 +836,14 @@ class MapParser:
 				elif line_start != '/':
 					tokens = [line]
 				else:  # comments
-					if line.startswith("// entity"):
+					parts = line.split()
+					curr_id = int(parts[3])
+					if parts[1] == "entity":
 						assert self.scope == Scope.File, line
-						self.curr_entity_id += 1
-					elif line.startswith("// primitive"):
+						self.curr_entity_id = curr_id
+					elif parts[1] == "primitive":
 						assert self.scope == Scope.Entity, line
-						self.curr_primitive_id += 1
+						self.curr_primitive_id = curr_id
 					continue
 
 				for t in tokens:
