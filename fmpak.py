@@ -117,8 +117,8 @@ def validate_fm_path():
 
 
 def get_files_in_dir(dir_path:str, patterns=[]):
+	if not os.path.exists(dir_path): return []
 	dir_files = list()
-
 	for filename in os.listdir(dir_path):
 		fullpath = os.path.join(dir_path, filename)#.encode("utf-8")
 		if not os.path.isfile(fullpath): continue
@@ -134,6 +134,7 @@ def get_files_in_dir(dir_path:str, patterns=[]):
 
 
 def get_files_in_dir_recursive(dir_path:str, patterns=[]):
+	if not os.path.exists(dir_path): return []
 	dir_files = list()
 	for root, dirs, files in os.walk(dir_path):
 		for file in files:
