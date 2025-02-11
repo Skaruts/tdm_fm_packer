@@ -945,9 +945,9 @@ if __name__ == "__main__":
 	parser.add_argument("-i", "--included", type=str, const='.', nargs='?', metavar="path", help="list files to include in pk4 within 'path' without packing them, where 'path' is a relative path (if ommitted, the mission path is used)")
 	parser.add_argument("-e", "--excluded", type=str, const='.', nargs='?', metavar="path", help="list files to exclude from pk4 within 'path' without packing them, where 'path' is a relative path (if ommitted, the mission path is used)")
 
-	parser.add_argument("--validate", type=str, choices=["all"] + VALIDATION_PARAMS, help="validate the mission")
-	parser.add_argument("-cn", "--check_named", metavar="[n, p v, ...]", type=str, help="check if properties [p] exist in entity named [n] with values [v]. E.g. -cn \"master_key, nodrop 1, inv_droppable 1\"")
-	parser.add_argument("-cc", "--check_class", metavar="[c, p v, ...]", type=str, help="check if properties [p] exist in entities of classname [n] with values [v]. E.g. -cn \"atdm:key*, nodrop 1, inv_droppable 1\"")
+	parser.add_argument("--validate", type=str, choices=["all"] + VALIDATION_PARAMS, help="check for unused or problematic files. Use all to perform all checks.")
+	parser.add_argument("-cn", "--check_named", metavar="[n, p v, ...]", type=str, help="check if properties [p] exist in entity named [n] with values [v]. Supports * widlcard. E.g. -cn \"key_*, nodrop 1, inv_droppable 1\"")
+	parser.add_argument("-cc", "--check_class", metavar="[c, p v, ...]", type=str, help="check if properties [p] exist in entities of classname [n] with values [v]. Supports * widlcard. E.g. -cn \"atdm:key*, nodrop 1, inv_droppable 1\"")
 
 	args = parser.parse_args()
 
