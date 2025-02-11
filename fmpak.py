@@ -176,13 +176,17 @@ def should_ignore(path, filters):
 def get_mapsequence_filenames():
 	map_names = list()
 
-	startmap = os.path.join(mission.path, "startingmap.txt")
+	startmap = os.path.join(mission.path, STARTMAP_FILENAME)
 	if os.path.isfile(startmap):
 		with open(startmap, 'r') as file:
-			map_names = [ file.readlines()[0].strip() ]
+			for line in file:
+				line = "".join(line.split())
+				if line == "": continue
+				map_names.append(line.strip())
+				break # TODO: check if startingmap.txt can take more than one map
 		return map_names
 
-	mapseq = os.path.join(mission.path, "tdm_mapsequence.txt")
+	mapseq = os.path.join(mission.path, MAPSEQUENCE_FILENAME)
 	if os.path.isfile(mapseq):
 		with open(mapseq, 'r') as file:
 			for line in file:
