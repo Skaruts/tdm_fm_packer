@@ -372,10 +372,10 @@ def parse_maps():
 
 
 def validate_models():
+	task("Checking models... ")
 	prop_vals = [ p["value"] for p in get_all_properties_named("model") ]
 	model_files = [ f.relpath.replace('\\', '/') for f in mission.included.files if "models" in f.fullpath]
 
-	task("Checking models... ")
 
 	unused = []
 	for f in model_files:
@@ -421,9 +421,10 @@ def is_material_in_maps(mat):
 
 
 def validate_materials():
+	task("Checking materials... ")
+
 	mats = parse_materials()
 	unused = []
-	task("Checking materials... ")
 
 	if len(mats) == 0:
 		echo(" no custom materials found.")
@@ -476,16 +477,17 @@ def is_skin_in_maps(skin_def):
 
 
 def validate_skins():
-	# Don't report unused individual skins, report files with no skins used
-	# (a file may bundle skins that are not all in use)
+	task("Checking skin files... ")
+
 	skins_dic = parse_skins()
 	unused_files = []
-	task("Checking skin files... ")
 
 	if len(skins_dic) == 0:
 		echo(" no custom skins found.")
 		return
 
+	# Don't report unused individual skins, report files with no skins used
+	# (a file may bundle skins that are not all in use)
 	for filepath in skins_dic:
 		skins_list = skins_dic[filepath]
 		num_unused = 0
@@ -504,6 +506,65 @@ def validate_skins():
 		echo(REPORT_OK)
 
 
+def parse_particles():
+	files = get_files_in_dir(os.path.join(mission.path, "particles"), [".prt"])
+	defs = []
+	for file in files:
+		scope_level = 0
+		with open(file, 'r') as f:
+			for line in f:
+				line = line.replace('\n', '').replace('\t', '')
+				if line == "": continue
+
+				line_start = line[0]
+
+				if   line_start == '{': scope_level += 1
+				elif line_start == '}': scope_level -= 1
+				elif line_start == '/': continue
+				elif scope_level == 0:
+					if   line.startswith("particle "):  line = line.replace("particle ", '')
+					elif line.startswith("particle\t"): line = line.replace("particle\t", '')
+					defs.append(line)
+
+	return defs
+
+
+def get_used_particles():
+	prts = []
+	for map in map_parser.maps:
+		for e in map.entities:
+			if "model" in e.properties:
+				prop_val = e.properties["model"]
+				if prop_val.endswith(".prt"):
+					prts.append(prop_val)
+	return prts
+
+
+def validate_particles():
+	task("Checking particles... ")
+
+	particles = parse_particles()
+	unused = []
+
+	if len(particles) == 0:
+		echo(" no custom particles found.")
+		return
+
+	used_particles = get_used_particles()
+	for p in particles:
+		if not p in used_particles:
+			unused.append(p)
+
+	if len(unused) > 0:
+		echo( REPORT_HEADER_NONL.format("particles") )
+		# echo("  (This may not mean they're unused)\n")
+		for p in unused:
+			echo( REPORT_OBJECT.format(p) )
+		echo( REPORT_COUNT.format(len(unused), "particles"))
+	else:
+		echo(REPORT_OK)
+
+
 def validate_mission_files(arg):
 	if arg == "paths":
 		validate_filepaths()
@@ -514,18 +575,15 @@ def validate_mission_files(arg):
 			validate_filepaths()
 			validate_models()
 			validate_materials()
-		elif arg == "models":
-			validate_models()
-		elif arg == "materials":
-			validate_materials()
-		elif arg == "skins":
-			validate_skins()
+		elif arg == "models":    validate_models()
+		elif arg == "materials": validate_materials()
+		elif arg == "skins":     validate_skins()
+		elif arg == "particles": validate_particles()
 		# elif arg == "files":     pass
 		# elif arg == "sounds":    pass
 		# elif arg == "guis":      pass
 		# elif arg == "scripts":   pass
 		# elif arg == "dds":       pass
-		# elif arg == "particles": pass
 
 
 def get_entity_named(name):
@@ -853,7 +911,7 @@ if __name__ == "__main__":
 	parser.add_argument("-i", "--included", type=str, const='.', nargs='?', metavar="path", help="list files to include in pk4 within 'path' without packing them, where 'path' is a relative path (if ommitted, the mission path is used)")
 	parser.add_argument("-e", "--excluded", type=str, const='.', nargs='?', metavar="path", help="list files to exclude from pk4 within 'path' without packing them, where 'path' is a relative path (if ommitted, the mission path is used)")
 
-	parser.add_argument("--validate", type=str, choices=["all", "paths", "models", "materials", "skins"], help="validate the mission")
+	parser.add_argument("--validate", type=str, choices=["all", "paths", "models", "materials", "skins", "particles"], help="validate the mission")
 	parser.add_argument("-cn", "--check_named", metavar="[n, p v, ...]", type=str, help="check if properties [p] exist in entity named [n] with values [v]. E.g. -cn \"master_key, nodrop 1, inv_droppable 1\"")
 	parser.add_argument("-cc", "--check_class", metavar="[c, p v, ...]", type=str, help="check if properties [p] exist in entities of classname [n] with values [v]. E.g. -cn \"atdm:key*, nodrop 1, inv_droppable 1\"")
 
