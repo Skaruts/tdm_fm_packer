@@ -65,6 +65,7 @@ class mission: # data class to avoid using 'global'
 	included : FileGroup
 	excluded : FileGroup
 	map_names = []
+	warning_count = 0
 
 class MissionFile:
 	def __init__(self, fullpath, relpath):
@@ -77,11 +78,12 @@ class MissionFile:
 # 		utils
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 def error(message):
-	echo(f"\nERROR: {message}\n")
+	echo(f"ERROR: {message}")
 	exit()
 
 def warning(message):
-	echo(f"\nWARNING: {message}\n")
+	mission.warning_count += 1
+	echo(f"WARNING: {message}")
 
 def task(msg):
 	echo(msg, end="")
@@ -308,7 +310,7 @@ def pack_fm():
 	t2 = time.time()
 	total_time = "{:.1f}".format(t2-t1)
 
-	echo(f"\nFinished packing '{zipname}'")
+	echo(f"\nPacking '{zipname}' completed with {mission.warning_count} warnings.")
 	echo(f"    {mission.included.dir_count} dirs, {mission.included.file_count} files, {total_time} seconds")
 
 
