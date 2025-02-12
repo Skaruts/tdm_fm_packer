@@ -82,40 +82,34 @@ Some files and folders are automatically excluded by the script:
 	fmpak.py . --pkget
 	```
 
-### Validating / Checking Files
+### Checking Files / Entities
 
-- #### `--validate [all | paths | files | models | materials | skins | particles]`
-	Checks for unused files or problems in the mission files.
+- #### `-c | --check`
+	This option has two main uses:
+	- to check for unused or problematic files, which can be useful to make sure the final pk4 doesn't contain unnecessary files.
+	- to check for entities that don't match the given values, which can be useful to make sure all entties of a certain classname or name pattern are correctly configured (eg, all keys are droppable, certain doors are locked, etc.)
+
+
+	To perform file related checks use one of the following parameters:
 	- **paths** - reports all file paths that contain spaces or special characters that can cause problems.
-	- **files** - reports missing files that are mandatory, or which you might want to have in the mission.
+	- **files** - (very experimental) reports missing files that are mandatory, or which you might want to have in the mission.
+	- **entities** - (very experimental) reports custom entities not in use by the maps in the map sequence.
 	- **models** - reports 3d models not in use by the maps in the map sequence.
 	- **materials** - reports material definitions not in use by the maps in the map sequence.
 	- **skins** - reports skin files that contain no definitions in use by the maps in the map sequence.
 	- **particles** - reports particle definitions not in use by the maps in the map sequence.
+	- **xdata** - reports xdata definitions not in use by the maps in the map sequence.
 	- **all** - does all of the above in one go.
 	```
-	fmpak.py . --validate paths
+	fmpak.py . --check paths
+	```
+	To check for entities that don't match the given values, pass a string containing `<classname ...>` or `<name ...>` followed by one or more `<property ...>`. A wildcard `*` can be used on both.
+	```c#
+	fmpak.py . -c "*key*, nodrop 1, inv_drop* 0"
+	```
+	Using a `?` in place of a value will report any entities containing that property, regarldes of its value.
+	```c#
+	fmpak.py . -c "*key*, inv_droppable ?"
 	```
 
-- #### `-cn | --check_named [name, prop1 val1, prop2 val2, ...]`
-	Checks whether entities named `name` contain the given properties with the given values. If the property values are different they get reported.
-
-	The name and properties need to be all contained in one string argument, separated by commas, and the property values separated by spaces.
-
-	Supports `*` for checking several different names at once.
-
-	```
-	fmpak.py . -cn "*key*, inv_map_start 0, nodrop 1, inv_droppable 0"
-	```
-
-- #### `-cc | --check_class [classname, prop1 val1, prop2 val2, ...]`
-	Checks whether entities with classname `classname` contain the given properties with the given values. If the property values are different they get reported.
-
-	The classname and properties need to be all contained in one string argument, separated by commas, and the property values separated by spaces.
-
-	Supports `*` for checking several different names at once.
-
-	```
-	fmpak.py . -cc "atdm:key_*, inv_droppable 1"
-	```
 
