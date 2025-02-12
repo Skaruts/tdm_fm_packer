@@ -78,7 +78,7 @@ class MissionFile:
 # 		utils
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 def error(message):
-	echo(f"ERROR: {message}")
+	echo(f"\n\nERROR: {message}\n")
 	exit()
 
 def warning(message):
@@ -120,7 +120,6 @@ def validate_fm_path():
 	is_upper = any(char.isupper() for char in mission.name)
 	if is_upper:
 		warning(f"mission directory name contains upppercase characters")
-
 
 
 def get_files_in_dir(dir_path:str, patterns=[]):
@@ -403,8 +402,11 @@ def validate_filepaths():
 		echo(REPORT_OK)
 
 
+show_map_parsing_messages = True
+
 def parse_maps():
-	# echo("Parsing maps")
+	if show_map_parsing_messages: echo("Parsing maps")
+
 	for map in mission.map_names:
 		filepath = os.path.join(mission.path, "maps", map + ".map")
 		map_parser.parse(filepath)
@@ -662,6 +664,7 @@ def validate_mission_files(arg):
 def get_entities_named(name):
 	ents = []
 	contains_wildcard = '*' in name
+	# print(contains_wildcard, name, len(map_parser.maps))
 	for map in map_parser.maps:
 		for e in map.entities:
 			if not contains_wildcard:
@@ -687,39 +690,7 @@ def get_entities_of_class(classname):
 	return ents
 
 
-def check_entity_properties_by(attr, check_args):
-	parse_maps()
-
-	args = check_args.replace(', ', ',').split(',')
-	attr_name = args[0]
-	props = [ args[i].split(' ') for i in range(1, len(args)) ] # args[1:]
-
-	task(f"Checking properties from '{attr_name}' entities... ")
-
-	if   attr == "name":      ents = get_entities_named(attr_name)
-	elif attr == "classname": ents = get_entities_of_class(attr_name)
-	else:                     error("wrong attribute for entity checking")
-
-	if len(ents) == 0:
-		echo(f"\n\n  No entities found with {attr} '{attr_name}'")
-	else:
-		inv_ents = check_entities_properties(ents, props)
-
-		if len(inv_ents) > 0:
-			echo(f"\n\n    Entities differ:")
-			if attr == "classname":
-				for e in inv_ents:
-					echo(f"        {e.classname}{' ' * (30-len(e.classname))} {e.name}")
-			else:
-				for e in inv_ents:
-					# echo(f"        {e.name}{' ' * (30-len(e.name))} {e.classname}")
-					echo(f"        {e.name:<30} {e.classname}")
-			echo(f"\n\n  {len(inv_ents)} entities differ\n")
-		else:
-			echo(f"all OK")
-
-
-def check_entities_properties(ents, props):
+def validate_ents_and_props(ents, props):
 	invalid_entities = []
 	for e in ents:
 		for p in props:
@@ -729,6 +700,43 @@ def check_entities_properties(ents, props):
 				invalid_entities.append(e)
 
 	return invalid_entities
+
+
+def check_entity_properties(check_args):
+	parse_maps()
+
+	args = check_args.replace(', ', ',').split(',')
+	ident_params = args[0].split(' ')
+	if len(ident_params) != 2:
+		error(f"invalid argument '{','.join(ident_params)}' for entity checking")
+
+	attr = ident_params[0]
+	ident = ident_params[1]
+	props = [ args[i].split(' ') for i in range(1, len(args)) ]
+
+	task(f"Checking properties from '{ident}' entities... ")
+
+	if   attr == "name":      ents = get_entities_named(ident)
+	elif attr == "classname": ents = get_entities_of_class(ident)
+	else:                     error(f"invalid attribute '{attr}' for entity checking")
+
+	if len(ents) == 0:
+		echo(f"\n\n  No entities found with {attr} '{ident}'")
+	else:
+		invalid_ents = validate_ents_and_props(ents, props)
+
+		if len(invalid_ents) > 0:
+			echo(f"\n\n    Entities differ:")
+			if attr == "classname":
+				for e in invalid_ents:
+					echo(f"        {e.classname}{' ' * (30-len(e.classname))} {e.name}")
+			else:
+				for e in invalid_ents:
+					# echo(f"        {e.name}{' ' * (30-len(e.name))} {e.classname}")
+					echo(f"        {e.name:<30} {e.classname}")
+			echo(f"\n\n  {len(invalid_ents)} entities differ\n")
+		else:
+			echo(f"all OK")
 
 
 
@@ -878,7 +886,7 @@ class MapParser:
 		self.curr_map = MapData()
 		self.maps.append(self.curr_map)
 
-		# task(f"    '{os.path.basename(map_file)}'...")
+		if show_map_parsing_messages: task(f"    '{os.path.basename(map_file)}'...")
 
 		t1 = time.time()
 		with open(map_file, 'r') as file:
@@ -920,7 +928,7 @@ class MapParser:
 
 		t2 = time.time()
 		total_time = "{:.1f}".format(t2-t1)
-		# echo(f" ({total_time} secs)\n")
+		if show_map_parsing_messages: echo(f" ({total_time} secs)\n")
 
 		assert(self.scope      == Scope.File)
 		assert(self.prop       == None)
@@ -933,29 +941,57 @@ class MapParser:
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 # 		run
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
+class CustomFormatter(ap.HelpFormatter):
+	def _split_lines(self, text, width):
+		# if text.startswith("ch|"):
+		return text.splitlines()
+		# return ap.HelpFormatter._split_lines(self, text, width)
+
+
 # keep this check here in case this script may be called from another tool
 if __name__ == "__main__":
 	map_parser = MapParser()
 
-	parser = ap.ArgumentParser()
+	parser = ap.ArgumentParser(formatter_class=CustomFormatter)
 
 	# parser.usage = "" # TODO maybe
 
-	parser.add_argument("--version",           action="version",    version=f"FM Packer v{VERSION} for The Dark Mod")
-	parser.add_argument("-qh", "--quick_help", action="store_true", help="show a shortened help message")
+	parser.add_argument("--version",           action="version",    version=f"FM Packer v{VERSION} for The Dark Mod\n\n")
+	parser.add_argument("-qh", "--quick_help", action="store_true", help="show a shortened help message\n\n")
 
-	parser.add_argument("path",    type=str, const=None, nargs='?', help="the path (relative or absolute) to the target fm")
-	parser.add_argument("--pkset", type=str, metavar="[csv/ssv]",   help="creates a .pkignore file with the given comma- or space-separated filter values")
-	parser.add_argument("--pkget", action="store_true",             help="shows the .pkignore content as csv filters")
+	parser.add_argument("path",    type=str, const=None, nargs='?', help="the path (relative or absolute) to the target fm\n\n")
+	parser.add_argument("--pkset", type=str, metavar="[csv/ssv]",   help="creates a .pkignore file with the given \ncomma- or space-separated filter values\n\n")
+	parser.add_argument("--pkget", action="store_true",             help="shows the .pkignore content as csv filters\n\n")
 
-	parser.add_argument("-i", "--included", type=str, const='.', nargs='?', metavar="path", help="list files to include in pk4 within 'path' without packing them, where 'path' is a relative path (if ommitted, the mission path is used)")
-	parser.add_argument("-e", "--excluded", type=str, const='.', nargs='?', metavar="path", help="list files to exclude from pk4 within 'path' without packing them, where 'path' is a relative path (if ommitted, the mission path is used)")
+	parser.add_argument("-i", "--included", type=str, const='.', nargs='?', metavar="path",
+		help=\
+				"list files to include in pk4 within 'path' without \n"
+				" packing them, where 'path' is a relative path \n"
+				"(if ommitted, the mission path is used)\n\n"
+	)
+	parser.add_argument("-e", "--excluded", type=str, const='.', nargs='?', metavar="path",
+		help=\
+				"list files to exclude from pk4 within 'path' without \n"
+				" packing them, where 'path' is a relative path \n"
+				"(if ommitted, the mission path is used)\n\n"
+	)
 
-	parser.add_argument("--validate", type=str, choices=["all"] + VALIDATION_PARAMS, help="check for unused or problematic files. Use all to perform all checks.")
-	parser.add_argument("-cn", "--check_named", metavar="[n, p v, ...]", type=str, help="check if properties [p] exist in entity named [n] with values [v]. Supports * widlcard. E.g. -cn \"key_*, nodrop 1, inv_droppable 1\"")
-	parser.add_argument("-cc", "--check_class", metavar="[c, p v, ...]", type=str, help="check if properties [p] exist in entities of classname [n] with values [v]. Supports * widlcard. E.g. -cn \"atdm:key*, nodrop 1, inv_droppable 1\"")
+	check_params = ', '.join(["all"] + VALIDATION_PARAMS)
+	parser.add_argument("-c", "--check", type=str, metavar = "[params]",
+		help=\
+				"check for unused or problematic files using one of\n"
+				f"[{check_params}],\n"
+				"or for entity property values. Use 'all' to\n"
+				"perform all file related checks at once.\n\n"
+				"To check for entities that don't have the given\n"
+				"property values, provide a comma-separated string\n"
+				"argument with <name ...> or <classname ...>,\n"
+				"followed by one or more <property val>.\n"
+				"E.g. \"name *key*, nodrop 0, inv_droppable 1\".\n\n"
+	)
 
 	args = parser.parse_args()
+	# print(args)
 
 	if args.quick_help:
 		print_quick_help()
@@ -981,8 +1017,14 @@ if __name__ == "__main__":
 	load_pkignore()
 	gather_files()
 
-	if args.validate:
-		validate_mission_files(args.validate)
+	if args.check:
+		if args.check in ["all"] + VALIDATION_PARAMS:
+			validate_mission_files(args.check)
+		else:
+			check_entity_properties(args.check)
+		# else:
+		# 	echo("wrong params for check - TODO proper error message")
+			# arg_parser.py: error: argument -c/--check: invalid choice: 'derp' (choose from 'foo', 'bar')
 		exit()
 
 	if args.check_named:
