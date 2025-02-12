@@ -219,8 +219,11 @@ def load_pkignore():
 				ignored_files.add(line)
 
 
+
 def add_ignored_maps():
 	mission.map_names = get_mapsequence_filenames()
+	if not mission.map_names:
+		warning(f"no maps are specified in {STARTMAP_FILENAME} or {MAPSEQUENCE_FILENAME}.")
 
 	maps_dir = os.path.join(mission.path, "maps")
 	for root, dirs, files in os.walk(maps_dir):
@@ -229,10 +232,12 @@ def add_ignored_maps():
 			if invalid_dir:
 				ignored_files.add(f)
 				continue
-
-			for name in mission.map_names:
-				if not f.startswith(name + '.' ):
-					ignored_files.add(f)
+			if mission.map_names:
+				for name in mission.map_names:
+					if not f.startswith(name + '.' ):
+						ignored_files.add(f)
+			else:
+				ignored_files.add(f)
 
 
 def gather_files():
