@@ -722,6 +722,8 @@ def validate_xdata():
 		echo(REPORT_OK)
 
 
+check_params = "[\n  all, paths, files, models, materials, skins, particles,\n  entities, xdata\n]"
+
 VALIDATION_PARAMS = [
 	"paths",
 	"files",
@@ -1095,36 +1097,46 @@ if __name__ == "__main__":
 	parser.add_argument("--version",           action="version",    version=f"FM Packer v{VERSION} for The Dark Mod\n\n")
 	parser.add_argument("-qh", "--quick_help", action="store_true", help="show a shortened help message\n\n")
 
-	parser.add_argument("path",    type=str, const=None, nargs='?', help="the path (relative or absolute) to the target fm\n\n")
-	parser.add_argument("--pkset", type=str, metavar="[csv/ssv]",   help="creates a .pkignore file with the given \ncomma- or space-separated filter values\n\n")
-	parser.add_argument("--pkget", action="store_true",             help="shows the .pkignore content as csv filters\n\n")
+	parser.add_argument("path",    type=str, const=None, nargs='?',
+		help="the path (relative or absolute) to the target fm\n\n")
+
+	parser.add_argument("--pkset", type=str, metavar="[csv/ssv]",
+		help= \
+				"creates a .pkignore file with the given comma- or \n"
+				"space-separated filters. Using * is not supported yet.\n"
+				"Eg: \"_docs/, test_, .blend\"\n\n"
+				)
+
+	parser.add_argument("--pkget", action="store_true",
+		help= "outputs the .pkignore content as csv filters\n\n")
 
 	parser.add_argument("-i", "--included", type=str, const='.', nargs='?', metavar="path",
 		help=\
-				"list files to include in pk4 within 'path' without \n"
-				" packing them, where 'path' is a relative path \n"
-				"(if ommitted, the mission path is used)\n\n"
+				"list files to include in pk4 within 'path' without packing\n"
+				"them, where 'path' is a relative path (if ommitted, the\n"
+				"mission path is used)\n\n"
 	)
 	parser.add_argument("-e", "--excluded", type=str, const='.', nargs='?', metavar="path",
 		help=\
-				"list files to exclude from pk4 within 'path' without \n"
-				" packing them, where 'path' is a relative path \n"
-				"(if ommitted, the mission path is used)\n\n"
+				"list files to exclude from pk4 within 'path' without packing\n"
+				"them, where 'path' is a relative path (if ommitted, the\n"
+				"mission path is used)\n\n"
 	)
 
-	check_params = ', '.join(["all"] + VALIDATION_PARAMS)
 	parser.add_argument("-c", "--check", type=str, metavar = "[params]",
 		help=\
-				"check for unused or problematic files using one of\n"
-				f"[{check_params}],\n"
-				"or for entity property values. Use 'all' to\n"
-				"perform all file related checks at once.\n\n"
+				"check for unused or problematic files or entity values.\n"
+				"To check files, you can use one of\n"
+				f"{check_params}\n"
+				"Use 'all' to perform all files related checks at once.\n\n"
 
-				"To check for entities that don't have the given\n"
-				"property values, provide a comma-separated string\n"
-				"argument with <name ...> or <classname ...>,\n"
-				"followed by one or more <property val>.\n"
+				"To find entities that don't match the given values,\n"
+				"provide a comma-separated string argument with <name ...>\n"
+				"or <classname ...>, followed by one or more <property val>.\n"
 				"E.g. \"name *key*, nodrop 0, inv_droppable 1\".\n\n"
+				"Using a '?' in place of a value will report all entities\n"
+				"containing that property, regardless of its value.\n\n"
+
 	)
 
 	args = parser.parse_args()
