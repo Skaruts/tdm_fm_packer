@@ -453,10 +453,8 @@ def parse_defs(dirname, patterns, prefix=""):
 				elif line_start == '}': scope_level -= 1
 				elif line_start == '/': continue
 				elif scope_level == 0:
-					if prefix != "":
-						p1, p2 = prefix + ' ', prefix + '\t'
-						if   line.startswith(p1): line = line.replace(p1, '')
-						elif line.startswith(p2): line = line.replace(p2, '')
+					if line.startswith(prefix):
+						line = line.split()[1]
 					defs.append(line)
 	return defs
 
@@ -508,8 +506,8 @@ def parse_skins():
 				elif line_start == '}': scope_level -= 1
 				elif line_start == '/': continue
 				elif scope_level == 0:
-					if   line.startswith("skin "):  line = line.replace("skin ", '')
-					elif line.startswith("skin\t"): line = line.replace("skin\t", '')
+					if line.startswith("skin"):
+						line = line.split[1]
 					defs[path].append(line)
 	return defs
 
@@ -590,6 +588,7 @@ def validate_particles():
 	else:
 		echo(REPORT_OK)
 
+
 # TODO
 RECOMMENDED_FILES = [
 	"guis/assets/purchase_menu/map_of.tga",
@@ -632,6 +631,54 @@ def validate_files():
 		echo(REPORT_OK)
 
 
+def parse_entities():
+	files = get_files_in_dir(os.path.join(mission.path, "def"), "*.def")
+	defs = []
+	for path in files:
+		scope_level = 0
+		with open(path, 'r') as file:
+			for line in file:
+				line = line.replace('\n', '').replace('\t', '')
+				if line == "": continue
+				if not line.startswith("entityDef"): continue
+				defs.append(line.split()[1])
+	return defs
+
+
+def validate_entities():
+	task("Checking entities (experimental)... ")
+
+	defs = parse_entities()
+	unused = []
+
+	if len(defs) == 0:
+		echo(" no custom entities found.")
+		return
+
+	used_entities = [] #= get_property_values("model", ["*.prt"])
+
+	for map in map_parser.maps:
+		for e in map.entities:
+			if e.classname in defs:
+				used_entities.append(e.classname)
+
+	# for e in used_entities:
+	# 	print(e)
+
+	for d in defs:
+		if not d in used_entities:
+			unused.append(d)
+
+	if len(unused) > 0:
+		echo( REPORT_HEADER_NONL.format("entities") )
+		# echo("  (This may not mean they're unused)\n")
+		for p in unused:
+			echo( REPORT_OBJECT.format(p) )
+		echo( REPORT_COUNT.format(len(unused), "entities"))
+	else:
+		echo(REPORT_OK)
+
+
 VALIDATION_PARAMS = [
 	"paths",
 	"files",
@@ -639,6 +686,7 @@ VALIDATION_PARAMS = [
 	"materials",
 	"skins",
 	"particles",
+	"entities",
 ]
 
 _validate_funcs = {
@@ -648,6 +696,7 @@ _validate_funcs = {
 	"materials" : validate_materials,
 	"skins"     : validate_skins,
 	"particles" : validate_particles,
+	"entities"  : validate_entities,
 }
 
 def validate_mission_files(arg):
@@ -826,7 +875,7 @@ class MapData:
 class MapParser:
 	def __init__(self):
 		self.scope        = Scope.File
-		self.prop         = None
+		self.curr_prop    = None
 		self.curr_ent     = None
 		self.curr_brush   = None
 		self.curr_patch   = None
@@ -858,7 +907,7 @@ class MapParser:
 		if self.scope == Scope.Entity:
 			# self.print_scope("Scope.Entity", token)
 			if token.startswith('"'):
-				self.prop = token[1:-1]
+				self.curr_prop = token[1:-1]
 				self.set_scope(Scope.Property)
 			elif token == '{':
 				self.set_scope(Scope.Def)
@@ -884,11 +933,11 @@ class MapParser:
 			# self.print_scope("Scope.Property", token)
 			if token.startswith('"'):
 				val = token[1:-1]
-				if   self.prop == "classname": self.curr_ent.classname = val
-				elif self.prop == "name":      self.curr_ent.name = val
-				# self.print_prop(self.prop, val)
-				self.curr_ent.properties[self.prop] = val
-				self.prop = None
+				if   self.curr_prop == "classname": self.curr_ent.classname = val
+				elif self.curr_prop == "name":      self.curr_ent.name = val
+				# self.print_prop(self.curr_prop, val)
+				self.curr_ent.properties[self.curr_prop] = val
+				self.curr_prop = None
 				self.set_scope(Scope.Entity)
 
 		elif self.scope == Scope.BrushDef:
@@ -972,7 +1021,7 @@ class MapParser:
 		if show_map_parsing_messages: echo(f" ({total_time} secs)\n")
 
 		assert(self.scope      == Scope.File)
-		assert(self.prop       == None)
+		assert(self.curr_prop       == None)
 		assert(self.curr_ent   == None)
 		assert(self.curr_brush == None)
 		assert(self.curr_patch == None)
@@ -1024,6 +1073,7 @@ if __name__ == "__main__":
 				f"[{check_params}],\n"
 				"or for entity property values. Use 'all' to\n"
 				"perform all file related checks at once.\n\n"
+
 				"To check for entities that don't have the given\n"
 				"property values, provide a comma-separated string\n"
 				"argument with <name ...> or <classname ...>,\n"
