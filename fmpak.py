@@ -182,6 +182,7 @@ def get_mapsequence_filenames():
 	map_names = list()
 
 	startmap = os.path.join(mission.path, STARTMAP_FILENAME)
+	mapseq = os.path.join(mission.path, MAPSEQUENCE_FILENAME)
 	if os.path.isfile(startmap):
 		with open(startmap, 'r') as file:
 			for line in file:
@@ -189,16 +190,14 @@ def get_mapsequence_filenames():
 				if line == "": continue
 				map_names.append(line.strip())
 				break # TODO: check if startingmap.txt can take more than one map
-		return map_names
-
-	mapseq = os.path.join(mission.path, MAPSEQUENCE_FILENAME)
-	if os.path.isfile(mapseq):
+	elif os.path.isfile(mapseq):
 		with open(mapseq, 'r') as file:
 			for line in file:
 				line = "".join(line.split())
 				if line == "": continue
 				map_names.append(line.strip()[ line.index(':')+1 :])
-		return map_names
+
+	return map_names
 
 
 def load_pkignore():
