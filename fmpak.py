@@ -679,6 +679,31 @@ def validate_entities():
 		echo(REPORT_OK)
 
 
+def validate_xdata():
+	task("Checking xdata files... ")
+
+	defs = parse_defs("xdata", ["*.xd"], line_pattern="readables/*")
+	unused = []
+
+	if len(defs) == 0:
+		echo(" no xdata found.")
+		return
+
+	used_xdata = get_property_values("xdata_contents", [])
+	for d in defs:
+		if not d in used_xdata:
+			unused.append(d)
+
+	if len(unused) > 0:
+		echo( REPORT_HEADER_NONL.format("xdata") )
+		# echo("  (This may not mean they're unused)\n")
+		for p in unused:
+			echo( REPORT_OBJECT.format(p) )
+		echo( REPORT_COUNT.format(len(unused), "xdata"))
+	else:
+		echo(REPORT_OK)
+
+
 VALIDATION_PARAMS = [
 	"paths",
 	"files",
@@ -687,6 +712,7 @@ VALIDATION_PARAMS = [
 	"skins",
 	"particles",
 	"entities",
+	"xdata",
 ]
 
 _validate_funcs = {
@@ -697,7 +723,9 @@ _validate_funcs = {
 	"skins"     : validate_skins,
 	"particles" : validate_particles,
 	"entities"  : validate_entities,
+	"xdata"     : validate_xdata,
 }
+
 
 def validate_mission_files(arg):
 	if not arg in ["paths", "files"]:
