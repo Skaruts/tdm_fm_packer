@@ -661,46 +661,83 @@ def validate_mission_files(arg):
 		_validate_funcs[arg]()
 
 
-def get_entities_named(name):
+def get_entities_named(entities, name):
 	ents = []
 	contains_wildcard = '*' in name
 	# print(contains_wildcard, name, len(map_parser.maps))
-	for map in map_parser.maps:
-		for e in map.entities:
-			if not contains_wildcard:
-				if e.name == name:
-					return [e]
-			elif fnmatch(e.name, name):
-				ents.append(e)
+
+	for e in entities:
+		if not contains_wildcard:
+			if e.name == name:
+				return [e]
+		elif fnmatch(e.name, name):
+			ents.append(e)
 
 	return ents
 
 
-def get_entities_of_class(classname):
+def get_entities_of_class(entities, classname):
 	ents = []
 	contains_wildcard = '*' in classname
-	for map in map_parser.maps:
-		for e in map.entities:
-			if not contains_wildcard:
-				if e.classname == classname:
-					ents.append(e)
-			else:
-				if fnmatch(e.classname, classname):
-					ents.append(e)
+	for e in entities:
+		if not contains_wildcard:
+			if e.classname == classname:
+				ents.append(e)
+		else:
+			if fnmatch(e.classname, classname):
+				ents.append(e)
 	return ents
 
 
 def validate_ents_and_props(ents, props):
 	invalid_entities = []
+	for prp in props:
+		k, v = prp
+		k_has_wildcard = '*' in k
+		v_has_wildcard = '*' in v
+		for e in ents:
+			if not k_has_wildcard:
+				if not k in e.properties \
+				or v == '?':
+					invalid_entities.append(e)
+					continue
+
+				if v_has_wildcard:
+					if not fnmatch(e.properties[k], v):
+						invalid_entities.append(e)
+				else:
+					if v != e.properties[k]:
+						invalid_entities.append(e)
+			else:
+				match = None
+				for p in e.properties:
+					if fnmatch(p, k):
+						match = p
+
+				if match:
+					if v == '?':
+						invalid_entities.append(e)
+						continue
+
+					if v_has_wildcard:
+						if not fnmatch(e.properties[match], v):
+							invalid_entities.append(e)
+					else:
+						if v != e.properties[match]:
+							invalid_entities.append(e)
+	return invalid_entities
+
+
+def validate_ents_and_props2(ents, props):
+	invalid_entities = []
 	for e in ents:
 		for p in props:
-			pname, pval = p[0], p[1]
+			pname, pval = p
 			if not pname in e.properties \
 			or pval != e.properties[pname]:
 				invalid_entities.append(e)
 
 	return invalid_entities
-
 
 def check_entity_properties(check_args):
 	parse_maps()
@@ -714,29 +751,31 @@ def check_entity_properties(check_args):
 	ident = ident_params[1]
 	props = [ args[i].split(' ') for i in range(1, len(args)) ]
 
-	task(f"Checking properties from '{ident}' entities... ")
+	for i in range(len(map_parser.maps)):
+		map = map_parser.maps[i]
+		task(f"Checking properties from '{ident}' entities in map '{mission.map_names[i]}'... ")
 
-	if   attr == "name":      ents = get_entities_named(ident)
-	elif attr == "classname": ents = get_entities_of_class(ident)
-	else:                     error(f"invalid attribute '{attr}' for entity checking")
+		if   attr == "name":      ents = get_entities_named(map.entities, ident)
+		elif attr == "classname": ents = get_entities_of_class(map.entities, ident)
+		else:                     error(f"invalid attribute '{attr}' for entity checking")
 
-	if len(ents) == 0:
-		echo(f"\n\n  No entities found with {attr} '{ident}'")
-	else:
-		invalid_ents = validate_ents_and_props(ents, props)
-
-		if len(invalid_ents) > 0:
-			echo(f"\n\n    Entities differ:")
-			if attr == "classname":
-				for e in invalid_ents:
-					echo(f"        {e.classname}{' ' * (30-len(e.classname))} {e.name}")
-			else:
-				for e in invalid_ents:
-					# echo(f"        {e.name}{' ' * (30-len(e.name))} {e.classname}")
-					echo(f"        {e.name:<30} {e.classname}")
-			echo(f"\n\n  {len(invalid_ents)} entities differ\n")
+		if len(ents) == 0:
+			echo(f"\n\n  No entities found with {attr} '{ident}'")
 		else:
-			echo(f"all OK")
+			invalid_ents = validate_ents_and_props(ents, props)
+
+			if len(invalid_ents) > 0:
+				echo(f"\n\n    Entities differ:")
+				if attr == "classname":
+					for e in invalid_ents:
+						echo(f"        {e.classname}{' ' * (30-len(e.classname))} {e.name}")
+				else:
+					for e in invalid_ents:
+						# echo(f"        {e.name}{' ' * (30-len(e.name))} {e.classname}")
+						echo(f"        {e.name:<30} {e.classname}")
+				echo(f"\n\n  {len(invalid_ents)} entities differ\n")
+			else:
+				echo(f"all OK")
 
 
 
@@ -786,13 +825,14 @@ class MapData:
 
 class MapParser:
 	def __init__(self):
-		self.scope      = Scope.File
-		self.prop       = None
-		self.curr_ent   = None
-		self.curr_brush = None
-		self.curr_patch = None
-		self.maps = []
-		self.curr_map = None
+		self.scope        = Scope.File
+		self.prop         = None
+		self.curr_ent     = None
+		self.curr_brush   = None
+		self.curr_patch   = None
+		self.maps         = []
+		self.entities     = []
+		self.curr_map     = None
 
 		self.curr_primitive_id  = -1
 		self.curr_entity_id     = -1
@@ -879,6 +919,7 @@ class MapParser:
 			# self.print_scope("Scope.File", token)
 			if token == '{':
 				self.curr_ent = Entity(self.curr_entity_id)
+				self.entities.append(self.curr_ent)
 				self.set_scope(Scope.Entity)
 
 
@@ -1027,13 +1068,6 @@ if __name__ == "__main__":
 			# arg_parser.py: error: argument -c/--check: invalid choice: 'derp' (choose from 'foo', 'bar')
 		exit()
 
-	if args.check_named:
-		check_entity_properties_by("name", args.check_named)
-		exit()
-
-	if args.check_class:
-		check_entity_properties_by("classname", args.check_class)
-		exit()
 
 	if   args.included: check_files(args.included, mission.included, "Included files")
 	elif args.excluded: check_files(args.excluded, mission.excluded, "Excluded files")
