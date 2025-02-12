@@ -122,20 +122,19 @@ def validate_fm_path():
 		warning(f"mission directory name contains upppercase characters")
 
 
-def get_files_in_dir(dir_path:str, patterns=[]):
+def get_files_in_dir(dir_path:str, filters=[]):
 	if not os.path.exists(dir_path): return []
 	dir_files = list()
 	for filename in os.listdir(dir_path):
 		fullpath = os.path.join(dir_path, filename)#.encode("utf-8")
 		if not os.path.isfile(fullpath): continue
-		if not patterns:
+		if not filters:
 			dir_files.append(fullpath)
 		else:
-			for p in patterns:
+			for p in filters:
 				if fnmatch(filename, p):
 					dir_files.append(fullpath)
 					break
-
 	return dir_files
 
 
@@ -412,10 +411,27 @@ def parse_maps():
 		map_parser.parse(filepath)
 
 
+def get_included_files_in_dir(dirname, filters=[]):
+	dir_relpath = os.path.join(mission.name, dirname)
+	files = []
+	for f in mission.included.files:
+		if dir_relpath in f.fullpath:
+			f_relpath = f.relpath.replace('\\', '/')
+			if not filters:
+				files.append(f_relpath)
+			else:
+				for filter in filters:
+					if fnmatch(f_relpath, filter):
+						files.append(f_relpath)
+						break
+	return files
+
+
 def validate_models():
 	task("Checking models... ")
-	model_files = get_files_in_dir_recursive(os.path.join(mission.path, "models"), VALID_MODEL_FORMATS)
-	model_files = [ f.replace(mission.path, '')[1:].replace('\\', '/') for f in model_files ]
+	# model_files = get_files_in_dir_recursive(os.path.join(mission.path, "models"), VALID_MODEL_FORMATS)
+	# model_files = [ f.replace(mission.path, '')[1:].replace('\\', '/') for f in model_files ]
+	model_files = get_included_files_in_dir("models")
 
 	if len(model_files) == 0:
 		echo(" no custom models found.")
@@ -437,8 +453,8 @@ def validate_models():
 		echo(REPORT_OK)
 
 
-def parse_defs(dirname, patterns, prefix=""):
-	files = get_files_in_dir(os.path.join(mission.path, dirname), patterns)
+def parse_defs(dirname, file_filters, prefix="", line_pattern=""):
+	files = get_included_files_in_dir(dirname, file_filters)
 	defs = []
 	for path in files:
 		scope_level = 0
@@ -453,8 +469,10 @@ def parse_defs(dirname, patterns, prefix=""):
 				elif line_start == '}': scope_level -= 1
 				elif line_start == '/': continue
 				elif scope_level == 0:
+					if line_pattern and not fnmatch(line, line_pattern):
+						continue
 					if line.startswith(prefix):
-						line = line.split()[1]
+						line = line.split()[-1]
 					defs.append(line)
 	return defs
 
@@ -490,7 +508,7 @@ def validate_materials():
 
 
 def parse_skins():
-	files = get_files_in_dir(os.path.join(mission.path, "skins"), ["*.skin"])
+	files = get_included_files_in_dir("skins", ["*.skin"])
 	defs = {}
 	for path in files:
 		scope_level = 0
@@ -507,7 +525,7 @@ def parse_skins():
 				elif line_start == '/': continue
 				elif scope_level == 0:
 					if line.startswith("skin"):
-						line = line.split[1]
+						line = line.split()[-1]
 					defs[path].append(line)
 	return defs
 
@@ -567,7 +585,7 @@ def get_property_values(prop_name, patterns=[]):
 def validate_particles():
 	task("Checking particles... ")
 
-	particles = parse_defs("particles", ["*.prt"], "particle")
+	particles = parse_defs("particles", ["*.prt"], prefix="particle")
 	unused = []
 
 	if len(particles) == 0:
@@ -632,7 +650,7 @@ def validate_files():
 
 
 def parse_entities():
-	files = get_files_in_dir(os.path.join(mission.path, "def"), "*.def")
+	files = get_included_files_in_dir("def", ["*.def"])
 	defs = []
 	for path in files:
 		scope_level = 0
