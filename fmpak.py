@@ -19,7 +19,7 @@ from fnmatch import fnmatch
 echo = print  # just to differentiate from debug prints
 
 
-VERSION = "0.6.3"
+VERSION = "0.7"
 
 VALID_MODEL_FORMATS = ["*.ase", "*.lwo", "*.obj"]  # TODO: is obj ever used?
 
@@ -1081,12 +1081,11 @@ class MapParser:
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 class CustomFormatter(ap.HelpFormatter):
 	def _split_lines(self, text, width):
-		# if text.startswith("ch|"):
 		return text.splitlines()
 		# return ap.HelpFormatter._split_lines(self, text, width)
 
 
-# keep this check here in case this script may be called from another tool
+# keep this check here in case this script is ever called from another tool
 if __name__ == "__main__":
 	map_parser = MapParser()
 
