@@ -19,7 +19,7 @@ from fnmatch import fnmatch
 echo = print  # just to differentiate from debug prints
 
 
-VERSION = "0.7"
+VERSION = "0.7.1"
 
 VALID_MODEL_FORMATS = ["*.ase", "*.lwo", "*.obj"]  # TODO: is obj ever used?
 
@@ -1109,25 +1109,25 @@ if __name__ == "__main__":
 	parser.add_argument("--pkget", action="store_true",
 		help= "outputs the .pkignore content as csv filters\n\n")
 
-	parser.add_argument("-i", "--included", type=str, const='.', nargs='?', metavar="path",
-		help=\
-				"list files to include in pk4 within 'path' without packing\n"
-				"them, where 'path' is a relative path (if ommitted, the\n"
-				"mission path is used)\n\n"
+	parser.add_argument("-li", "--list_included", type=str, const='.', nargs='?', metavar="path",
+		help= \
+				"list files to include in pk4 within 'path' without packing,\n"
+				"where 'path' is a relative path, and if ommitted, the\n"
+				"mission path is used\n\n"
 	)
-	parser.add_argument("-e", "--excluded", type=str, const='.', nargs='?', metavar="path",
-		help=\
-				"list files to exclude from pk4 within 'path' without packing\n"
-				"them, where 'path' is a relative path (if ommitted, the\n"
-				"mission path is used)\n\n"
+	parser.add_argument("-le", "--list_excluded", type=str, const='.', nargs='?', metavar="path",
+		help= \
+				"list files to exclude from pk4 within 'path' without packing,\n"
+				"where 'path' is a relative path, and if ommitted, the\n"
+				"mission path is used\n\n"
 	)
 
 	parser.add_argument("-c", "--check", type=str, metavar = "[params]",
-		help=\
+		help= \
 				"check for unused or problematic files or entity values.\n"
 				"To check files, you can use one of\n"
 				f"{check_params}\n"
-				"Use 'all' to perform all files related checks at once.\n\n"
+				"Use 'all' to perform all file-related checks at once.\n\n"
 
 				"To find entities that don't match the given values,\n"
 				"provide a comma-separated string argument with <name ...>\n"
