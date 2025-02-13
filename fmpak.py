@@ -1074,6 +1074,11 @@ class MapParser:
 		assert(self.curr_brush == None)
 		assert(self.curr_patch == None)
 
+		# add the materials under the "texture" properties
+		# that weren't detected during parsing
+		for e in self.curr_map.entities:
+			if "texture" in e.properties:
+				e.materials.add(e.properties["texture"])
 
 
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
