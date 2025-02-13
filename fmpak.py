@@ -14,17 +14,44 @@ import time
 import zipfile as zipf
 import argparse as ap
 from enum import Enum
+from fnmatch import fnmatch
 
 echo = print  # just to differentiate from debug prints
 
-VERSION = "0.6"
-PKIGNORE_FILENAME = ".pkignore"
-MODFILE_FILENAME = "darkmod.txt"
+
+VERSION = "0.7"
+
+VALID_MODEL_FORMATS = ["*.ase", "*.lwo", "*.obj"]  # TODO: is obj ever used?
 
 INVALID_CHARS = [' ',
 	'(', ')', '{', '}', '[', ']', '|', '!', '@', '#', '$', '%', '^', '&',
 	'*', ',', '+', '-', '"', '\'', ':', ';', '?', '<', '>', '`', '~', '/'
 ]
+
+VALID_UNUSED_MATERIALS = [
+	"guis/assets/purchase_menu/map_of"
+]
+
+REPORT_HEADER = "\n\n  Some {} were not found in the maps\n"  # .format(name)
+REPORT_HEADER_NONL = "\n\n  Some {} were not found in the maps"  # .format(name)
+REPORT_OBJECT = "      {}"    # .format(object)
+REPORT_COUNT  = "\n  {} {}\n"   # .format(amount, name)
+REPORT_OK     = "all Ok"
+
+PKIGNORE_FILENAME    = ".pkignore"
+MODFILE_FILENAME     = "darkmod.txt"
+README_FILENAME      = "readme.txt"
+STARTMAP_FILENAME    = "startingmap.txt"
+MAPSEQUENCE_FILENAME = "tdm_mapsequence.txt"
+BRIEFING_FILENAME    = "xdata/briefing.xd"
+
+# make sure to exclude any meta stuff
+ignored_folders = set(["savegames", "__pycache__", ".git"])
+ignored_files = set([
+	PKIGNORE_FILENAME, ".lin", "bak", ".log", ".dat", ".py", ".pyc",
+	".pk4", ".zip", ".7z", ".rar", ".gitignore", ".gitattributes"
+])
+
 
 class FileGroup:
 	def __init__(self, files, dir_count, file_count):
@@ -38,14 +65,7 @@ class mission: # data class to avoid using 'global'
 	included : FileGroup
 	excluded : FileGroup
 	map_names = []
-
-# make sure to exclude any meta stuff
-ignored_folders = set(["savegames", "__pycache__", ".git"])
-ignored_files = set([
-	PKIGNORE_FILENAME, ".lin", "bak", ".log", ".dat", ".py", ".pyc",
-	".pk4", ".zip", ".7z", ".rar", ".gitignore", ".gitattributes"
-])
-
+	warning_count = 0
 
 class MissionFile:
 	def __init__(self, fullpath, relpath):
@@ -58,8 +78,15 @@ class MissionFile:
 # 		utils
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 def error(message):
-	echo("ERROR:", message)
+	echo(f"\n\nERROR: {message}\n")
 	exit()
+
+def warning(message):
+	mission.warning_count += 1
+	echo(f"WARNING: {message}")
+
+def task(msg):
+	echo(msg, end="")
 
 
 def parse_path(dir):
@@ -90,24 +117,58 @@ def validate_fm_path():
 	if not os.path.isfile(os.path.join(mission.path, MODFILE_FILENAME)):
 		error(f"no '{MODFILE_FILENAME}' found at path '{mission.path}'")
 
+	is_upper = any(char.isupper() for char in mission.name)
+	if is_upper:
+		warning(f"mission directory name contains upppercase characters")
 
-def get_files_in_dir(dir_path:str, filters:list = []):
-	files = list()
 
-	for name in os.listdir(dir_path):
-		filepath = os.path.join(dir_path, name)#.encode("utf-8")
-		_, file_ext = os.path.splitext(filepath)
-		if os.path.isfile(filepath):
-			is_valid = True
-			for filter in filters:
-				if filter in name:
-					is_valid = False
+def get_files_in_dir(dir_path:str, filters=[]):
+	if not os.path.exists(dir_path): return []
+	dir_files = list()
+	for filename in os.listdir(dir_path):
+		fullpath = os.path.join(dir_path, filename)#.encode("utf-8")
+		if not os.path.isfile(fullpath): continue
+		if not filters:
+			dir_files.append(fullpath)
+		else:
+			for p in filters:
+				if fnmatch(filename, p):
+					dir_files.append(fullpath)
 					break
+	return dir_files
 
-			if is_valid:
-				files.append(filepath)
 
-	return files
+def get_files_in_dir_recursive(dir_path:str, patterns=[]):
+	if not os.path.exists(dir_path): return []
+	dir_files = list()
+	for root, dirs, files in os.walk(dir_path):
+		for file in files:
+			fullpath = os.path.join(root, file)
+			if not os.path.isfile(fullpath): continue  # TODO: is this needed here?
+			if not patterns:
+				dir_files.append(fullpath)
+			else:
+				for p in patterns:
+					if fnmatch(file, p):
+						dir_files.append(fullpath)
+						break
+	return dir_files
+
+
+def get_filenames_in_dir_recursive(dir_path:str, patterns=[]):
+	dir_files = list()
+	for root, dirs, files in os.walk(dir_path):
+		for file in files:
+			fullpath = os.path.join(root, file)
+			if not os.path.isfile(fullpath): continue  # TODO: is this needed here?
+			if not patterns:
+				dir_files.append(file)
+			else:
+				for p in patterns:
+					if fnmatch(file, p):
+						dir_files.append(file)
+						break
+	return dir_files
 
 
 def should_ignore(path, filters):
@@ -120,20 +181,23 @@ def should_ignore(path, filters):
 def get_mapsequence_filenames():
 	map_names = list()
 
-	startmap = os.path.join(mission.path, "startingmap.txt")
+	startmap = os.path.join(mission.path, STARTMAP_FILENAME)
+	mapseq = os.path.join(mission.path, MAPSEQUENCE_FILENAME)
 	if os.path.isfile(startmap):
 		with open(startmap, 'r') as file:
-			map_names = [ file.readlines()[0].strip() ]
-		return map_names
-
-	mapseq = os.path.join(mission.path, "tdm_mapsequence.txt")
-	if os.path.isfile(mapseq):
+			for line in file:
+				line = "".join(line.split())
+				if line == "": continue
+				map_names.append(line.strip())
+				break # TODO: check if startingmap.txt can take more than one map
+	elif os.path.isfile(mapseq):
 		with open(mapseq, 'r') as file:
 			for line in file:
 				line = "".join(line.split())
 				if line == "": continue
 				map_names.append(line.strip()[ line.index(':')+1 :])
-		return map_names
+
+	return map_names
 
 
 def load_pkignore():
@@ -155,8 +219,11 @@ def load_pkignore():
 				ignored_files.add(line)
 
 
+
 def add_ignored_maps():
 	mission.map_names = get_mapsequence_filenames()
+	if not mission.map_names:
+		warning(f"no maps are specified in {STARTMAP_FILENAME} or {MAPSEQUENCE_FILENAME}.")
 
 	maps_dir = os.path.join(mission.path, "maps")
 	for root, dirs, files in os.walk(maps_dir):
@@ -165,10 +232,12 @@ def add_ignored_maps():
 			if invalid_dir:
 				ignored_files.add(f)
 				continue
-
-			for name in mission.map_names:
-				if not f.startswith(name):
-					ignored_files.add(f)
+			if mission.map_names:
+				for name in mission.map_names:
+					if not f.startswith(name + '.' ):
+						ignored_files.add(f)
+			else:
+				ignored_files.add(f)
 
 
 def gather_files():
@@ -212,15 +281,16 @@ def gather_files():
 	# print(f"\n       total {num_inc_dirs+num_exc_dirs} dirs, {num_inc_files+num_exc_files} files  | {len(inc)+len(exc)}" )
 
 
+
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 #       TASK FUNCTIONS
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 def print_quick_help():
 	echo(f"""
-    Usage:
-        {os.path.basename(__file__)} <path> <options>
+	Usage:
+		{os.path.basename(__file__)} <path> <options>
 
-    Use '{os.path.basename(__file__)} -h' for more information.
+	Use '{os.path.basename(__file__)} -h' for more information.
 	""")
 
 
@@ -238,7 +308,7 @@ def pack_fm():
 	t2 = time.time()
 	total_time = "{:.1f}".format(t2-t1)
 
-	echo(f"\nFinished packing '{zipname}'")
+	echo(f"\nPacking '{zipname}' completed with {mission.warning_count} warnings.")
 	echo(f"    {mission.included.dir_count} dirs, {mission.included.file_count} files, {total_time} seconds")
 
 
@@ -294,191 +364,515 @@ def create_pk_ignore(csv):
 
 
 def validate_filepaths():
-	name_msg = ""
 	invalid_filespaths = []
 
-	echo("\n  Checking filepaths ...", end="")
+	task("Checking filepaths...")
+
+	name_report = ""
+	mission_name_has_uppercase = any(char.isupper() for char in mission.name)
+	if mission_name_has_uppercase:
+		name_report = f"      mission name '{mission.name}' contains uppercase letters"
 
 	for c in INVALID_CHARS:
 		if c in mission.name:
-			name_msg = f"      mission name: {mission.name}"
+			if name_report != "": name_report += " and spaces or special symbols"
+			else:                 name_report = f"      mission name '{mission.name}' contanins spaces or special symbols"
+			break
 
 	for f in mission.included.files:
 		for c in INVALID_CHARS:
 			if c in f.relpath:
 				invalid_filespaths.append(f.relpath)
+				break
 
-	if name_msg != "" or len(invalid_filespaths) > 0:
-		echo("\n  Some paths contain spaces or invalid chars:\n")
-		if name_msg != "":
-			echo(name_msg + "\n")
-
-		for ifp in invalid_filespaths:
-			echo(f"      {ifp}")
-
+	if name_report != "" or len(invalid_filespaths) > 0:
 		num_inv_paths = len(invalid_filespaths)
-		if name_msg != "":
+		echo("\n\n  Some paths contain spaces or special symbols\n")
+
+		if name_report != "":
 			num_inv_paths += 1
-		echo(f"\n  {num_inv_paths} invalid paths\n")
-		echo("\n  Avoid using any of:" + " ".join(INVALID_CHARS)[1:] )
+			echo(name_report + "\n")
+
+		for inv_path in invalid_filespaths:
+			echo( REPORT_OBJECT.format(inv_path) )
+
+		echo(f"\n  {num_inv_paths} invalid paths." + "\n  Avoid using any of:" + " ".join(INVALID_CHARS)[1:])
 	else:
-		echo(" All OK.\n")
+		echo(REPORT_OK)
 
 
-def get_all_properties_named(prop):
-	props = []
-	for map in map_parser.maps:
-		for ent in map.entities:
-			if prop in ent.properties:
-				props.append({
-					"name"  : prop,
-					"value" : ent.properties[prop]
-				})
-	return props
-
-VALID_MODEL_FORMATS = ["ase", "lwo", "obj"]  # TODO: is obj ever used?
-
-def validate_models():
-	prop_vals = [ p["value"] for p in get_all_properties_named("model") ]
-	model_files = [ f.relpath.replace('\\', '/') for f in mission.included.files if "models" in f.fullpath]
-
-	invalid_models = []
-
-	for f in model_files:
-		if not f in prop_vals:
-			invalid_models.append(f)
-
-	if len(invalid_models) > 0:
-		echo("\n  There are some unused models:\n")
-		for m in invalid_models:
-			echo(f"      {m}")
-
-		echo(f"\n  {len(invalid_models)} unused models\n")
-
-	else:
-		echo("\n  There are no unused models.\n")
-
+show_map_parsing_messages = True
 
 def parse_maps():
+	if show_map_parsing_messages: echo("Parsing maps")
+
 	for map in mission.map_names:
 		filepath = os.path.join(mission.path, "maps", map + ".map")
 		map_parser.parse(filepath)
 
-def validate_mission_files(arg):
-	if arg == "paths":
-		validate_filepaths()
+
+def get_included_files_in_dir(dirname, filters=[]):
+	dir_relpath = os.path.join(mission.name, dirname)
+	files = []
+	for f in mission.included.files:
+		if dir_relpath in f.fullpath:
+			f_relpath = f.relpath.replace('\\', '/')
+			if not filters:
+				files.append(f_relpath)
+			else:
+				for filter in filters:
+					if fnmatch(f_relpath, filter):
+						files.append(f_relpath)
+						break
+	return files
+
+
+def validate_models():
+	task("Checking models... ")
+	# model_files = get_files_in_dir_recursive(os.path.join(mission.path, "models"), VALID_MODEL_FORMATS)
+	# model_files = [ f.replace(mission.path, '')[1:].replace('\\', '/') for f in model_files ]
+	model_files = get_included_files_in_dir("models")
+
+	if len(model_files) == 0:
+		echo(" no custom models found.")
+		return
+
+	used_models = get_property_values("model")
+	unused = []
+	for f in model_files:
+		if not f in used_models:
+			unused.append(f)
+
+	if len(unused) > 0:
+		echo( REPORT_HEADER.format("models") )
+		# echo("\n  (This may not mean they're unused)\n")
+		for o in unused:
+			echo( REPORT_OBJECT.format(o) )
+		echo( REPORT_COUNT.format(len(unused), "models"))
 	else:
-		parse_maps()
-
-		if   arg == "all":
-			validate_filepaths()
-			validate_models()
-		elif arg == "models":
-			validate_models()
-		# elif arg == "files":     pass
-		# elif arg == "sounds":    pass
-		# elif arg == "materials": pass
-		# elif arg == "guis":      pass
-		# elif arg == "scripts":   pass
-		# elif arg == "skins":     pass
-		# elif arg == "dds":       pass
-		# elif arg == "particles": pass
+		echo(REPORT_OK)
 
 
-def get_entity_named(name):
+def parse_defs(dirname, file_filters, prefix="", line_pattern=""):
+	files = get_included_files_in_dir(dirname, file_filters)
+	defs = []
+	for path in files:
+		scope_level = 0
+		with open(path, 'r') as file:
+			for line in file:
+				line = line.replace('\n', '').replace('\t', '')
+				if line == "": continue
+
+				line_start = line[0]
+
+				if   line_start == '{': scope_level += 1
+				elif line_start == '}': scope_level -= 1
+				elif line_start == '/': continue
+				elif scope_level == 0:
+					if line_pattern and not fnmatch(line, line_pattern):
+						continue
+					if line.startswith(prefix):
+						line = line.split()[-1]
+					defs.append(line)
+	return defs
+
+
+def validate_materials():
+	task("Checking materials... ")
+
+	mats = parse_defs("materials", ["*.mtr"])
+	unused = []
+
+	if len(mats) == 0:
+		echo(" no custom materials found.")
+		return
+
+	used_materials = []
 	for map in map_parser.maps:
 		for e in map.entities:
-			if e.name == name:
-				return e
-	return None
+			used_materials += e.materials
 
-def get_entities_of_class(classname):
-	ents = []
-	if not '*' in classname:
-		for map in map_parser.maps:
-			for ent in map.entities:
-				if ent.classname == classname:
-					ents.append(ent)
+	for m in mats:
+		if not m in used_materials         \
+		and not m in VALID_UNUSED_MATERIALS:
+			unused.append(m)
+
+	if len(unused) > 0:
+		echo( REPORT_HEADER_NONL.format("materials") )
+		echo("  (This may not mean they're unused)\n")
+		for o in unused:
+			echo( REPORT_OBJECT.format(o) )
+		echo( REPORT_COUNT.format(len(unused), "materials"))
 	else:
-		strings = classname.split('*')
-		# print(strings)
-		left = strings[0]
-		right = strings[1] # if len(strings) > 1 else ""
-		# print(len(map_parser.maps))
-		for map in map_parser.maps:
-			# print(len(map.entities))
-			for ent in map.entities:
-				# print(left in ent.classname, right in ent.classname)
-				if left in ent.classname and right in ent.classname:
-					ents.append(ent)
+		echo(REPORT_OK)
+
+
+def parse_skins():
+	files = get_included_files_in_dir("skins", ["*.skin"])
+	defs = {}
+	for path in files:
+		scope_level = 0
+		defs[path] = []
+		with open(path, 'r') as file:
+			for line in file:
+				line = line.replace('\n', '').replace('\t', '')
+				if line == "": continue
+
+				line_start = line[0]
+
+				if   line_start == '{': scope_level += 1
+				elif line_start == '}': scope_level -= 1
+				elif line_start == '/': continue
+				elif scope_level == 0:
+					if line.startswith("skin"):
+						line = line.split()[-1]
+					defs[path].append(line)
+	return defs
+
+
+def validate_skins():
+	task("Checking skin files... ")
+
+	skins_dic = parse_skins() # don't use parse_defs, skins need to be separated by file
+	unused_files = []
+
+	if len(skins_dic) == 0:
+		echo(" no custom skins found.")
+		return
+
+	used_skins = get_property_values("skin")
+
+	# Don't report unused individual skins, report files with no skins used
+	# (a file may bundle skins that are not all in use)
+	for filepath in skins_dic:
+		skins_list = skins_dic[filepath]
+		num_unused = 0
+		for skin in skins_list:
+			if not skin in used_skins:
+		 		num_unused += 1
+		if num_unused == len(skins_list):
+		 	unused_files.append(filepath.replace(mission.path, '')[1:])
+
+	if len(unused_files) > 0:
+		echo("\n\n  Some skin files have no skins found in the maps\n")
+		for f in unused_files:
+			echo( REPORT_OBJECT.format(f) )
+		echo( REPORT_COUNT.format(len(unused_files), "skin files"))
+	else:
+		echo(REPORT_OK)
+
+
+
+
+
+def get_property_values(prop_name, patterns=[]):
+	props = []
+
+	for map in map_parser.maps:
+		for e in map.entities:
+			if not prop_name in e.properties: continue
+			if not patterns:
+				props.append(e.properties[prop_name])
+			else:
+				prop_val = e.properties[prop_name]
+				for p in patterns:
+					if fnmatch(prop_val, p):
+						props.append(prop_val)
+						break
+	return props
+
+
+def validate_particles():
+	task("Checking particles... ")
+
+	particles = parse_defs("particles", ["*.prt"], prefix="particle")
+	unused = []
+
+	if len(particles) == 0:
+		echo(" no custom particles found.")
+		return
+
+	used_particles = get_property_values("model", ["*.prt"])
+	for p in particles:
+		if not p in used_particles:
+			unused.append(p)
+
+	if len(unused) > 0:
+		echo( REPORT_HEADER_NONL.format("particles") )
+		# echo("  (This may not mean they're unused)\n")
+		for p in unused:
+			echo( REPORT_OBJECT.format(p) )
+		echo( REPORT_COUNT.format(len(unused), "particles"))
+	else:
+		echo(REPORT_OK)
+
+
+# TODO
+RECOMMENDED_FILES = [
+	"guis/assets/purchase_menu/map_of.tga",
+	"guis/map_of.gui",
+	# TODO: maybe check 'guis/map/*.gui' files with same name as the used maps
+]
+
+def validate_files():
+	task("Checking mission files... ")
+
+	# first pass for basic mission files
+	files_to_check = [
+		MODFILE_FILENAME,
+		README_FILENAME,
+		STARTMAP_FILENAME,
+		BRIEFING_FILENAME,
+	]
+
+	missing_files = [ f
+		for f in files_to_check
+			if not os.path.isfile(os.path.join(mission.path, f))]
+
+	if STARTMAP_FILENAME in missing_files and len(mission.map_names) > 0:
+		missing_files.remove(STARTMAP_FILENAME)
+
+	# second pass for other files that are recommended or require special treatment
+	files_to_check = RECOMMENDED_FILES
+
+	missing_files += [ f
+		for f in files_to_check
+			if not os.path.isfile(os.path.join(mission.path, f))]
+
+	if len(missing_files) > 0:
+		echo("\n\n  Some required or recommended files are missing\n")
+		# echo("  (Some are just suggestions, not all files are strictly required.)\n")
+		for p in missing_files:
+			echo( REPORT_OBJECT.format(p) )
+		echo( REPORT_COUNT.format(len(missing_files), "missing files"))
+	else:
+		echo(REPORT_OK)
+
+
+def parse_entities():
+	files = get_included_files_in_dir("def", ["*.def"])
+	defs = []
+	for path in files:
+		scope_level = 0
+		with open(path, 'r') as file:
+			for line in file:
+				line = line.replace('\n', '').replace('\t', '')
+				if line == "": continue
+				if not line.startswith("entityDef"): continue
+				defs.append(line.split()[1])
+	return defs
+
+
+def validate_entities():
+	task("Checking entities (experimental)... ")
+
+	defs = parse_entities()
+	unused = []
+
+	if len(defs) == 0:
+		echo(" no custom entities found.")
+		return
+
+	used_entities = [] #= get_property_values("model", ["*.prt"])
+
+	for map in map_parser.maps:
+		for e in map.entities:
+			if e.classname in defs:
+				used_entities.append(e.classname)
+
+	# for e in used_entities:
+	# 	print(e)
+
+	for d in defs:
+		if not d in used_entities:
+			unused.append(d)
+
+	if len(unused) > 0:
+		echo( REPORT_HEADER_NONL.format("entities") )
+		# echo("  (This may not mean they're unused)\n")
+		for p in unused:
+			echo( REPORT_OBJECT.format(p) )
+		echo( REPORT_COUNT.format(len(unused), "entities"))
+	else:
+		echo(REPORT_OK)
+
+
+def validate_xdata():
+	task("Checking xdata files... ")
+
+	defs = parse_defs("xdata", ["*.xd"], line_pattern="readables/*")
+	unused = []
+
+	if len(defs) == 0:
+		echo(" no xdata found.")
+		return
+
+	used_xdata = get_property_values("xdata_contents", [])
+	for d in defs:
+		if not d in used_xdata:
+			unused.append(d)
+
+	if len(unused) > 0:
+		echo( REPORT_HEADER_NONL.format("xdata") )
+		# echo("  (This may not mean they're unused)\n")
+		for p in unused:
+			echo( REPORT_OBJECT.format(p) )
+		echo( REPORT_COUNT.format(len(unused), "xdata"))
+	else:
+		echo(REPORT_OK)
+
+
+check_params = "[\n  all, paths, files, models, materials, skins, particles,\n  entities, xdata\n]"
+
+VALIDATION_PARAMS = [
+	"paths",
+	"files",
+	"models",
+	"materials",
+	"skins",
+	"particles",
+	"entities",
+	"xdata",
+]
+
+_validate_funcs = {
+	"paths"     : validate_filepaths,
+	"files"     : validate_files,
+	"models"    : validate_models,
+	"materials" : validate_materials,
+	"skins"     : validate_skins,
+	"particles" : validate_particles,
+	"entities"  : validate_entities,
+	"xdata"     : validate_xdata,
+}
+
+
+def validate_mission_files(arg):
+	if not arg in ["paths", "files"]:
+		parse_maps()
+
+	if arg == "all":
+		for string in VALIDATION_PARAMS:
+			_validate_funcs[string]()
+	else:
+		_validate_funcs[arg]()
+
+
+def get_entities_named(entities, name):
+	ents = []
+	contains_wildcard = '*' in name
+	# print(contains_wildcard, name, len(map_parser.maps))
+
+	for e in entities:
+		if not contains_wildcard:
+			if e.name == name:
+				return [e]
+		elif fnmatch(e.name, name):
+			ents.append(e)
 
 	return ents
 
 
-def check_named_entity_property(check_named):
-	parse_maps()
-
-	args = check_named.replace(', ', ',').split(',')
-	name = args[0]
-	props = [ args[i].split(' ') for i in range(1, len(args)) ] # args[1:]
-	echo(f"\nChecking properties from '{name}' entity ... ", end="")
-
-	ent = get_entity_named(name)
-	if not ent:
-		echo(f"\n\n  No entity found with name '{name}'")
-	else:
-		invalid = False
-		for p in props:
-			name = p[0]
-			val = p[1]
-			if not name in ent.properties \
-			or val != ent.properties[name]:
-				invalid = True
-				echo(f"\n\n    Entity differs: '{ent.name}' ({ent.classname})")
-				break
-		if not invalid:
-			echo("  OK")
-
-
-def check_class_property(check_class):
-	parse_maps()
-
-	args = check_class.replace(', ', ',').split(',')
-	classname = args[0]
-	props = [ args[i].split(' ') for i in range(1, len(args)) ] # args[1:]
-
-	echo(f"\nChecking properties from '{classname}' entities ... ", end="")
-
-	ents = get_entities_of_class(classname)
-	if len(ents) == 0:
-		echo(f"\n\n  No entities found with '{classname}' classname")
-	else:
-		invalid_entities = []
-		for e in ents:
-			invalid = False
-			for p in props:
-				name = p[0]
-				val = p[1]
-				if not name in e.properties \
-				or val != e.properties[name]:
-					invalid_entities.append(e)
-					invalid = True
-					break
-			if invalid:
-				break
-
-		if len(invalid_entities) > 0:
-			# echo("\n\n  Some entities don't fit the criteria:\n")
-			echo("\n")
-			for e in invalid_entities:
-				echo(f"    {e.classname}    {e.name}")
-			echo(f"\n\n  {len(invalid_entities)} entities differ\n")
+def get_entities_of_class(entities, classname):
+	ents = []
+	contains_wildcard = '*' in classname
+	for e in entities:
+		if not contains_wildcard:
+			if e.classname == classname:
+				ents.append(e)
 		else:
-			echo(f"  All OK\n")
+			if fnmatch(e.classname, classname):
+				ents.append(e)
+	return ents
 
 
+def validate_ents_and_props(ents, props):
+	invalid_entities = []
+	for prp in props:
+		k, v = prp
+		k_has_wildcard = '*' in k
+		v_has_wildcard = '*' in v
+		for e in ents:
+			if not k_has_wildcard:
+				if not k in e.properties \
+				or v == '?':
+					invalid_entities.append(e)
+					continue
+
+				if v_has_wildcard:
+					if not fnmatch(e.properties[k], v):
+						invalid_entities.append(e)
+				else:
+					if v != e.properties[k]:
+						invalid_entities.append(e)
+			else:
+				match = None
+				for p in e.properties:
+					if fnmatch(p, k):
+						match = p
+
+				if match:
+					if v == '?':
+						invalid_entities.append(e)
+						continue
+
+					if v_has_wildcard:
+						if not fnmatch(e.properties[match], v):
+							invalid_entities.append(e)
+					else:
+						if v != e.properties[match]:
+							invalid_entities.append(e)
+	return invalid_entities
 
 
+def validate_ents_and_props2(ents, props):
+	invalid_entities = []
+	for e in ents:
+		for p in props:
+			pname, pval = p
+			if not pname in e.properties \
+			or pval != e.properties[pname]:
+				invalid_entities.append(e)
+
+	return invalid_entities
+
+def check_entity_properties(check_args):
+	parse_maps()
+
+	args = check_args.replace(', ', ',').split(',')
+	ident_params = args[0].split(' ')
+	if len(ident_params) != 2:
+		error(f"invalid argument '{','.join(ident_params)}' for entity checking")
+
+	attr = ident_params[0]
+	ident = ident_params[1]
+	props = [ args[i].split(' ') for i in range(1, len(args)) ]
+
+	for i in range(len(map_parser.maps)):
+		map = map_parser.maps[i]
+		task(f"Checking properties from '{ident}' entities in map '{mission.map_names[i]}'... ")
+
+		if   attr == "name":      ents = get_entities_named(map.entities, ident)
+		elif attr == "classname": ents = get_entities_of_class(map.entities, ident)
+		else:                     error(f"invalid attribute '{attr}' for entity checking")
+
+		if len(ents) == 0:
+			echo(f"\n\n  No entities found with {attr} '{ident}'")
+		else:
+			invalid_ents = validate_ents_and_props(ents, props)
+
+			if len(invalid_ents) > 0:
+				echo(f"\n\n    Entities differ:")
+				if attr == "classname":
+					for e in invalid_ents:
+						echo(f"        {e.classname}{' ' * (30-len(e.classname))} {e.name}")
+				else:
+					for e in invalid_ents:
+						# echo(f"        {e.name}{' ' * (30-len(e.name))} {e.classname}")
+						echo(f"        {e.name:<30} {e.classname}")
+				echo(f"\n\n  {len(invalid_ents)} entities differ\n")
+			else:
+				echo(f"all OK")
 
 
 
@@ -494,16 +888,18 @@ class Scope(Enum):
 	Entity        = "Scope.Entity"
 	Property      = "Scope.Property"
 	Def           = "Scope.Def"
-	BrushDef3     = "Scope.BrushDef3"
-	PatchDef3     = "Scope.PatchDef3"
+	BrushDef      = "Scope.BrushDef"
+	PatchDef      = "Scope.PatchDef"
 
 class Entity:
-	def __init__(self):
+	def __init__(self, id):
+		self.id        = id
 		self.classname = ""
 		self.name      = ""
 		self.properties = {}
 		self.brushes = []
 		self.patches = []
+		self.materials = set()
 
 class Property:
 	def __init__(self, name, value):
@@ -511,12 +907,14 @@ class Property:
 		self.value = value
 
 class Brush:
-	def __init__(self):
-		self.textures = []
+	def __init__(self, id):
+		self.id = id
+		self.materials = set()
 
 class Patch:
-	def __init__(self):
-		self.texture = ""
+	def __init__(self, id):
+		self.id = id
+		self.material = ""
 
 class MapData:
 	def __init__(self):
@@ -524,13 +922,17 @@ class MapData:
 
 class MapParser:
 	def __init__(self):
-		self.scope      = Scope.File
-		self.prop       = None
-		self.curr_ent   = None
-		self.curr_brush = None
-		self.curr_patch = None
-		self.maps = []
-		self.curr_map = None
+		self.scope        = Scope.File
+		self.curr_prop    = None
+		self.curr_ent     = None
+		self.curr_brush   = None
+		self.curr_patch   = None
+		self.maps         = []
+		self.entities     = []
+		self.curr_map     = None
+
+		self.curr_primitive_id  = -1
+		self.curr_entity_id     = -1
 
 	def set_scope(self, scope):
 		if debug_show_scopes: print(">", scope)
@@ -540,150 +942,215 @@ class MapParser:
 		return self.scope == sc
 
 	# debug
-	def print_scope(self, name, token):
-		if not debug_show_scopes: return
-		print("    ", name, token)
+	# def print_scope(self, name, token):
+	# 	if not debug_show_scopes: return
+	# 	print("    ", name, token)
 
-	# debug
-	def print_prop(self, name, value):
-		if not debug_print_props: return
-		print("       ", name, value)
+	# # debug
+	# def print_prop(self, name, value):
+	# 	if not debug_print_props: return
+	# 	print("       ", name, value)
 
 	def parse_token(self, token):
-		if self.scope == Scope.File:
-			self.print_scope("Scope.File", token)
-
-			if token == "{":
-				self.curr_ent = Entity()
-				self.set_scope(Scope.Entity)
-
-		elif self.scope == Scope.Entity:
-			self.print_scope("Scope.Entity", token)
-
+		if self.scope == Scope.Entity:
+			# self.print_scope("Scope.Entity", token)
 			if token.startswith('"'):
-				self.prop = token[1:-1]
+				self.curr_prop = token[1:-1]
 				self.set_scope(Scope.Property)
-			elif token == "{":
+			elif token == '{':
 				self.set_scope(Scope.Def)
-			elif token == "}":
+			elif token == '}':
+				# commit entity
 				self.curr_map.entities.append(self.curr_ent)
 				self.curr_ent = None
-				self.print_prop("----------------------", "")
+				# self.print_prop("----------------------", "")
 				self.set_scope(Scope.File)
 
 		elif self.scope == Scope.Def:
-			self.print_scope("Scope.Def", token)
-
-			if   token == "brushDef3":
-				self.curr_brush = Brush()
-				self.set_scope(Scope.BrushDef3)
-			elif token == "patchDef3":
-				self.curr_patch = Patch()
-				self.set_scope(Scope.PatchDef3)
-			elif token == "}":
+			# self.print_scope("Scope.Def", token)
+			if   token.startswith("brushDef"):
+				self.curr_brush = Brush(self.curr_primitive_id)
+				self.set_scope(Scope.BrushDef)
+			elif token.startswith("patchDef"):
+				self.curr_patch = Patch(self.curr_primitive_id)
+				self.set_scope(Scope.PatchDef)
+			elif token == '}':
 				self.set_scope(Scope.Entity)
 
 		elif self.scope == Scope.Property:
-			self.print_scope("Scope.Property", token)
-
+			# self.print_scope("Scope.Property", token)
 			if token.startswith('"'):
 				val = token[1:-1]
-				if   self.prop == "classname": self.curr_ent.classname = val
-				elif self.prop == "name":      self.curr_ent.name = val
-
-				self.print_prop(self.prop, val)
-				self.curr_ent.properties[self.prop] = val
-				self.prop = None
+				if   self.curr_prop == "classname": self.curr_ent.classname = val
+				elif self.curr_prop == "name":      self.curr_ent.name = val
+				# self.print_prop(self.curr_prop, val)
+				self.curr_ent.properties[self.curr_prop] = val
+				self.curr_prop = None
 				self.set_scope(Scope.Entity)
 
-		elif self.scope == Scope.BrushDef3:
+		elif self.scope == Scope.BrushDef:
 			if token.startswith('"'):
-				self.print_prop("brush texture: ", token)
-				self.curr_brush.textures.append(token[1:-1])
+				# self.print_prop("brush texture: ", token)
+				mat = token[1:-1]
+				self.curr_brush.materials.add(mat)
+				self.curr_ent.materials.add(mat)
 			elif token == '}':
+				# commit brush
 				self.curr_ent.brushes.append(self.curr_brush)
 				self.curr_brush = None
 				self.set_scope(Scope.Def)
 
-		elif self.scope == Scope.PatchDef3:
+		elif self.scope == Scope.PatchDef:
 			if token.startswith('"'):
-				self.print_prop("patch texture: ", token)
-				self.curr_patch.texture = token[1:-1]
+				# self.print_prop("patch texture: ", token)
+				mat = token[1:-1]
+				self.curr_patch.material = mat
+				self.curr_ent.materials.add(mat)
 			elif token == '}':
+				# commit patch
 				self.curr_ent.patches.append(self.curr_patch)
 				self.curr_patch = None
 				self.set_scope(Scope.Def)
+
+		elif self.scope == Scope.File:   # this branch is the most infrequent, keep it last
+			# self.print_scope("Scope.File", token)
+			if token == '{':
+				self.curr_ent = Entity(self.curr_entity_id)
+				self.entities.append(self.curr_ent)
+				self.set_scope(Scope.Entity)
+
 
 	def parse(self, map_file):
 		self.curr_map = MapData()
 		self.maps.append(self.curr_map)
 
-		echo(f"\nParsing map '{os.path.basename(map_file)}'...", end="")
+		if show_map_parsing_messages: task(f"    '{os.path.basename(map_file)}'...")
 
 		t1 = time.time()
 		with open(map_file, 'r') as file:
+
 			for line in file:
 				line = line.replace('\n', '')
-				line = line.replace('\t', '')
+				# line = line.replace('\t', '')
 
-				tokens = line.split(' ')
-				if tokens[0] in ["//", "Version"] : continue
+				line_start = line[0]
 
-				# if it's a vector value it contain spaces, so undo their split
-				if len(tokens) > 2 and tokens[1].startswith('"'):
-					tokens = [tokens[0], " ".join(tokens[1:])]
+				if line_start == '(':
+					assert self.scope in [Scope.PatchDef, Scope.BrushDef], line
+					# when it's brush or patch, skip the faces
+					if "textures" in line:  # brush
+						q1 = line.find('"')
+						q2 = line.rfind('"')
+						tokens = [ line[q1:q2+1] ]
+					else:                   # patch
+						continue
+				elif line_start == '"':
+					assert self.scope in [Scope.Entity, Scope.PatchDef], line
+					q2 = line.find('"', 1) +1
+					tokens = [ line[:q2], line[q2+1:] ]
+				elif line_start != '/':
+					tokens = [line]
+				else:  # comments
+					parts = line.split()
+					curr_id = int(parts[2])
+					if parts[1] == "entity":
+						assert self.scope == Scope.File, line
+						self.curr_entity_id = curr_id
+					elif parts[1] == "primitive":
+						assert self.scope == Scope.Entity, line
+						self.curr_primitive_id = curr_id
+					continue
 
 				for t in tokens:
 					self.parse_token(t)
 
 		t2 = time.time()
 		total_time = "{:.1f}".format(t2-t1)
-		echo(f" ({total_time} secs)'")
+		if show_map_parsing_messages: echo(f" ({total_time} secs)\n")
 
 		assert(self.scope      == Scope.File)
-		assert(self.prop       == None)
+		assert(self.curr_prop       == None)
 		assert(self.curr_ent   == None)
 		assert(self.curr_brush == None)
 		assert(self.curr_patch == None)
 
 
 
-
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 # 		run
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
-# keep this check here in case this script may be called from another tool
+class CustomFormatter(ap.HelpFormatter):
+	def _split_lines(self, text, width):
+		return text.splitlines()
+		# return ap.HelpFormatter._split_lines(self, text, width)
+
+
+# keep this check here in case this script is ever called from another tool
 if __name__ == "__main__":
 	map_parser = MapParser()
 
-	parser = ap.ArgumentParser()
+	parser = ap.ArgumentParser(formatter_class=CustomFormatter)
 
 	# parser.usage = "" # TODO maybe
 
-	parser.add_argument("--version",           action="version",    version=f"FM Packer v{VERSION} for The Dark Mod")
-	parser.add_argument("-qh", "--quick_help", action="store_true", help="show a shortened help message")
+	parser.add_argument("--version",           action="version",    version=f"FM Packer v{VERSION} for The Dark Mod\n\n")
+	parser.add_argument("-qh", "--quick_help", action="store_true", help="show a shortened help message\n\n")
 
-	parser.add_argument("path",    type=str, const=None, nargs='?', help="the path (relative or absolute) to the target fm")
-	parser.add_argument("--pkset", type=str, metavar="[csv/ssv]",   help="creates a .pkignore file with the given comma- or space-separated filter values")
-	parser.add_argument("--pkget", action="store_true",             help="shows the .pkignore content as csv filters")
+	parser.add_argument("path",    type=str, const=None, nargs='?',
+		help="the path (relative or absolute) to the target fm\n\n")
 
-	parser.add_argument("-i", "--included", type=str, const='.', nargs='?', metavar="path", help="list files to include in pk4 within 'path' without packing them, where 'path' is a relative path (if ommitted, the mission path is used)")
-	parser.add_argument("-e", "--excluded", type=str, const='.', nargs='?', metavar="path", help="list files to exclude from pk4 within 'path' without packing them, where 'path' is a relative path (if ommitted, the mission path is used)")
+	parser.add_argument("--pkset", type=str, metavar="[csv/ssv]",
+		help= \
+				"creates a .pkignore file with the given comma- or \n"
+				"space-separated filters. Using * is not supported yet.\n"
+				"Eg: \"_docs/, test_, .blend\"\n\n"
+				)
 
-	parser.add_argument("--validate", type=str, choices=["all", "paths", "models"], help="validate the mission")
-	parser.add_argument("-cn", "--check_named", metavar="[n, p v, ...]", type=str, help="check if properties [p] exist in entity named [n] with values [v]. E.g. -cn \"master_key, nodrop 1, inv_droppable 1\"")
-	parser.add_argument("-cc", "--check_class", metavar="[c, p v, ...]", type=str, help="check if properties [p] exist in entities of classname [n] with values [v]. E.g. -cn \"atdm:key*, nodrop 1, inv_droppable 1\"")
+	parser.add_argument("--pkget", action="store_true",
+		help= "outputs the .pkignore content as csv filters\n\n")
+
+	parser.add_argument("-i", "--included", type=str, const='.', nargs='?', metavar="path",
+		help=\
+				"list files to include in pk4 within 'path' without packing\n"
+				"them, where 'path' is a relative path (if ommitted, the\n"
+				"mission path is used)\n\n"
+	)
+	parser.add_argument("-e", "--excluded", type=str, const='.', nargs='?', metavar="path",
+		help=\
+				"list files to exclude from pk4 within 'path' without packing\n"
+				"them, where 'path' is a relative path (if ommitted, the\n"
+				"mission path is used)\n\n"
+	)
+
+	parser.add_argument("-c", "--check", type=str, metavar = "[params]",
+		help=\
+				"check for unused or problematic files or entity values.\n"
+				"To check files, you can use one of\n"
+				f"{check_params}\n"
+				"Use 'all' to perform all files related checks at once.\n\n"
+
+				"To find entities that don't match the given values,\n"
+				"provide a comma-separated string argument with <name ...>\n"
+				"or <classname ...>, followed by one or more <property val>.\n"
+				"E.g. \"name *key*, nodrop 0, inv_droppable 1\".\n\n"
+				"Using a '?' in place of a value will report all entities\n"
+				"containing that property, regardless of its value.\n\n"
+
+	)
 
 	args = parser.parse_args()
+	# print(args)
 
 	if args.quick_help:
 		print_quick_help()
 		exit()
 
+	echo() # leave an empty line between the last prompt
+
 	if args.pkset:
 		echo("Previous .pkignore:\n\t", get_pkignore_csv())
 		create_pk_ignore(args.pkset)
-		echo("\nNew .pkignore:\n\t", get_pkignore_csv())
+		echo(f"\nNew .pkignore:\n\t{get_pkignore_csv()}\n")
 		exit()
 
 	if args.pkget:
@@ -698,17 +1165,16 @@ if __name__ == "__main__":
 	load_pkignore()
 	gather_files()
 
-	if args.validate:
-		validate_mission_files(args.validate)
+	if args.check:
+		if args.check in ["all"] + VALIDATION_PARAMS:
+			validate_mission_files(args.check)
+		else:
+			check_entity_properties(args.check)
+		# else:
+		# 	echo("wrong params for check - TODO proper error message")
+			# arg_parser.py: error: argument -c/--check: invalid choice: 'derp' (choose from 'foo', 'bar')
 		exit()
 
-	if args.check_named:
-		check_named_entity_property(args.check_named)
-		exit()
-
-	if args.check_class:
-		check_class_property(args.check_class)
-		exit()
 
 	if   args.included: check_files(args.included, mission.included, "Included files")
 	elif args.excluded: check_files(args.excluded, mission.excluded, "Excluded files")

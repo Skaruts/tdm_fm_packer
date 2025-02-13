@@ -74,40 +74,42 @@ Some files and folders are automatically excluded by the script:
 - #### `--pkset`
 	Creates a .pkignore file with the given comma- or space-separated filters - may be needed to enclose them in quotes.
 	```
-	fmpak.py . --pk_set "sources/, .blend, some_file.txt"
+	fmpak.py . --pkset "sources/, .blend, some_file.txt"
 	```
 - #### `--pkget`
 	Shows the current content of the .pkignore file as csv filters.
 	```
-	fmpak.py . --pk_get
+	fmpak.py . --pkget
 	```
 
-### Validating / Checking Files
+### Checking Files / Entities
 
-- #### `--validate [all | paths | models]`
-	Used to check for problems in the paths and unused files.
-	- **paths** - checks all file paths for spaces or special characters that can cause problems.
-	- **models** - checks for 3d models that not being used by any of the maps in the map sequence.
-	- **all** - does all of the above.
+- #### `-c | --check`
+	This option has two main uses:
+	- to check for unused or problematic files, which can be useful to make sure the final pk4 doesn't contain unnecessary files.
+	- to check for entities that don't match the given values, which can be useful to make sure all entties of a certain classname or name pattern are correctly configured (eg, all keys are droppable, certain doors are locked, etc.)
+
+
+	To perform file related checks use one of the following parameters:
+	- **paths** - reports all file paths that contain spaces or special characters that can cause problems.
+	- **files** - (very experimental) reports missing files that are mandatory, or which you might want to have in the mission.
+	- **entities** - (very experimental) reports custom entities not in use by the maps in the map sequence.
+	- **models** - reports 3d models not in use by the maps in the map sequence.
+	- **materials** - reports material definitions not in use by the maps in the map sequence.
+	- **skins** - reports skin files that contain no definitions in use by the maps in the map sequence.
+	- **particles** - reports particle definitions not in use by the maps in the map sequence.
+	- **xdata** - reports xdata definitions not in use by the maps in the map sequence.
+	- **all** - does all of the above in one go.
 	```
-	fmpak.py . --validate paths
+	fmpak.py . --check paths
+	```
+	To check for entities that don't match the given values, pass a string containing `<classname ...>` or `<name ...>` followed by one or more `<property ...>`. A wildcard `*` can be used on both.
+	```c#
+	fmpak.py . -c "*key*, nodrop 1, inv_drop* 0"
+	```
+	Using a `?` in place of a value will report any entities containing that property, regarldes of its value.
+	```c#
+	fmpak.py . -c "*key*, inv_droppable ?"
 	```
 
-- #### `-cn | --check_named [name, prop1 val1, prop2 val2, ...]`
-	Checks whether an entity named `name` contains the given properties with the given values.
-
-	Name and properties need to be all contained in one string argument, separated by commas (values separated by spaces).
-
-	```
-	fmpak.py . -cn "key_master, inv_map_start 0, nodrop 1, inv_droppable 0"
-	```
-
-- #### `-cc | --check_class [classname, prop1 val1, prop2 val2, ...]`
-	Checks whether entities with classname `class` contain the given properties with the given values.
-
-	Syntax is the same as `--check_named`, except it supports `*` for checking several different classnames at once.
-
-	```
-	fmpak.py . -cc "atdm:key_*, inv_droppable 1"
-	```
 
