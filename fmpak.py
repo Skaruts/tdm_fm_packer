@@ -19,7 +19,7 @@ from fnmatch import fnmatch
 echo = print  # just to differentiate from debug prints
 
 
-VERSION = "0.7"
+VERSION = "0.7.2"
 
 VALID_MODEL_FORMATS = ["*.ase", "*.lwo", "*.obj"]  # TODO: is obj ever used?
 
@@ -32,9 +32,13 @@ VALID_UNUSED_MATERIALS = [
 	"guis/assets/purchase_menu/map_of"
 ]
 
+VALID_UNUSED_XDATA_FILES = [
+	"xdata/briefing.xd"
+]
+
 REPORT_HEADER = "\n\n  Some {} were not found in the maps\n"  # .format(name)
-REPORT_HEADER_NONL = "\n\n  Some {} were not found in the maps"  # .format(name)
-REPORT_OBJECT = "      {}"    # .format(object)
+REPORT_FILE   = "    > in file: {}"    # .format(file)
+REPORT_OBJECT = "        {}"    # .format(object)
 REPORT_COUNT  = "\n  {} {}\n"   # .format(amount, name)
 REPORT_OK     = "all Ok"
 
@@ -282,6 +286,179 @@ def gather_files():
 
 
 
+def parse_maps():
+	if args.verbose: echo("Parsing maps")
+
+	for map in mission.map_names:
+		filepath = os.path.join(mission.path, "maps", map + ".map")
+		map_parser.parse(filepath)
+
+
+def get_included_files_in_dir(dirname, filters=[]):
+	dir_relpath = os.path.join(mission.name, dirname)
+	files = []
+	for f in mission.included.files:
+		if dir_relpath in f.fullpath:
+			f_relpath = f.relpath.replace('\\', '/')
+			if not filters:
+				files.append(f_relpath)
+			else:
+				for filter in filters:
+					if fnmatch(f_relpath, filter):
+						files.append(f_relpath)
+						break
+	return files
+
+
+def get_property_values(prop_name, patterns=[]):
+	props = []
+
+	for map in map_parser.maps:
+		for e in map.entities:
+			if not prop_name in e.properties: continue
+			if not patterns:
+				props.append(e.properties[prop_name])
+			else:
+				prop_val = e.properties[prop_name]
+				for p in patterns:
+					if fnmatch(prop_val, p):
+						props.append(prop_val)
+						break
+	return props
+
+
+def parse_def_files(dirname, file_filters, match_pattern=None, include_prefixes=[], exclude_prefixes=[]):
+	files = get_included_files_in_dir(dirname, file_filters)
+	defs = {}
+
+	for path in files:
+		scope_level = 0
+		defs[path]  = []
+
+		with open(path, 'r') as file:
+			in_block_comment = False
+
+			for line in file:
+				token_count    = 0
+				include_line   = False
+				token          = ""
+				line           = line.replace('\t', '')
+				num_line_parts = len(line.split())
+
+				for i in range(len(line)):
+					ch = line[i]
+					nc = '' if i >= len(line)-1 else line[i+1]
+					pc = '' if i == 0 else line[i-1]
+
+					if   ch == '{':
+						if not in_block_comment: scope_level += 1
+					elif ch == '}':
+						if not in_block_comment: scope_level -= 1
+					elif ch == '/' and nc == '/':   #  //     do test this comment type first
+						if not in_block_comment: break
+					elif ch == '*' and pc == '/':   #  /*
+						scope_level += 1
+						in_block_comment = True
+						token = ""
+					elif ch == '/' and pc == '*':   #  */
+						scope_level -= 1
+						if scope_level == 0:
+							in_block_comment = False
+						token = ""
+					elif scope_level == 0:
+						if in_block_comment: continue
+						if ch in [' ','\n','\t','\r'] :
+							if token == "": continue
+							token_count += 1
+
+							if num_line_parts > 1 and token_count == 1:
+								if (exclude_prefixes and     token in exclude_prefixes)\
+								or (include_prefixes and not token in include_prefixes):
+									token = ""
+									continue
+
+							if num_line_parts == 1 or token_count > 1: #never store the prefix
+								if not match_pattern or fnmatch(token, match_pattern):
+									# print(token)
+									defs[path].append(token)
+							token = ""
+						else:
+							token += ch
+	# for f in defs:
+	# 	print(defs[f])
+	return defs
+
+
+def report_unused_definitions(name, unused):
+	file_count = 0
+	item_count = 0
+	if len(unused) > 0:
+		echo( REPORT_HEADER.format(name) )
+		for file in unused:
+			echo( REPORT_FILE.format(file) )
+			file_count += 1
+			for d in unused[file]:
+				echo( REPORT_OBJECT.format(d) )
+				item_count += 1
+		echo( f"\n  {item_count} {name}, {file_count} files\n" )
+	else:
+		echo(REPORT_OK)
+
+
+def report_unused_files(name, unused):
+	if len(unused) > 0:
+		echo(f"\n\n  Some {name} files have zero {name}s in use\n")
+		for f in unused:
+			echo( REPORT_OBJECT.format(f) )
+		echo( REPORT_COUNT.format(len(unused), f"{name} files"))
+	else:
+		echo(REPORT_OK)
+
+
+def check_unused_defs_in(files, used, valid_unused_defs=[], valid_unused_files=[]):
+	unused = {}
+	for filepath in files:
+		if filepath in valid_unused_files: continue
+		defs = files[filepath]
+		for d in defs:
+			if d in valid_unused_defs: continue
+			if not d in used:
+				if not filepath in unused:
+					unused[filepath] = []
+				unused[filepath].append(d)
+	return unused
+
+
+def check_unused_files_in(files, used, valid_unused_defs=[], valid_unused_files=[]):
+	if isinstance(files, dict):
+		unused = {}
+		for filepath in files:
+			if filepath in valid_unused_files: continue
+			defs = files[filepath]
+			num_unused = 0
+			for d in defs:
+				if d in valid_unused_defs: continue
+				if not d in used:
+					num_unused += 1
+			if num_unused == len(defs):
+				unused[filepath] = defs
+	else:
+		unused = []
+		for d in files:
+			if d in valid_unused_defs: continue
+			if not d in used:
+				unused.append(d)
+	return unused
+
+
+def check_any_found(files, name):
+	if len(files) == 0:
+		echo(f" no custom {name} found.")
+		return False
+	return True
+
+
+
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 #       TASK FUNCTIONS
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
@@ -324,7 +501,11 @@ def check_files(arg, file_group, header):
 	for f in file_group.files:
 		if abspath in f.fullpath:
 			num_files += 1
-			echo(f"    {f.fullpath.replace(abspath , '')[1:]}")
+			path :str = f.fullpath.replace(abspath , '')[1:]
+			# path = path.encode(encoding="utf-8", errors="replace")
+			# path = path.decode()
+			echo(f"    {path}")
+
 
 	if is_root: echo(f"\n       {file_group.file_count} files")
 	else:       echo(f"\n       {num_files}/{file_group.file_count} files")
@@ -401,60 +582,95 @@ def validate_filepaths():
 		echo(REPORT_OK)
 
 
-show_map_parsing_messages = True
-
-def parse_maps():
-	if show_map_parsing_messages: echo("Parsing maps")
-
-	for map in mission.map_names:
-		filepath = os.path.join(mission.path, "maps", map + ".map")
-		map_parser.parse(filepath)
-
-
-def get_included_files_in_dir(dirname, filters=[]):
-	dir_relpath = os.path.join(mission.name, dirname)
-	files = []
-	for f in mission.included.files:
-		if dir_relpath in f.fullpath:
-			f_relpath = f.relpath.replace('\\', '/')
-			if not filters:
-				files.append(f_relpath)
-			else:
-				for filter in filters:
-					if fnmatch(f_relpath, filter):
-						files.append(f_relpath)
-						break
-	return files
-
-
 def validate_models():
 	task("Checking models... ")
-	# model_files = get_files_in_dir_recursive(os.path.join(mission.path, "models"), VALID_MODEL_FORMATS)
-	# model_files = [ f.replace(mission.path, '')[1:].replace('\\', '/') for f in model_files ]
-	model_files = get_included_files_in_dir("models")
 
-	if len(model_files) == 0:
-		echo(" no custom models found.")
-		return
+	files = get_included_files_in_dir("models")
+	if not check_any_found(files, "models"): return
 
-	used_models = get_property_values("model")
-	unused = []
-	for f in model_files:
-		if not f in used_models:
-			unused.append(f)
+	used = get_property_values("model")
+	unused = check_unused_files_in(files, used)
 
-	if len(unused) > 0:
-		echo( REPORT_HEADER.format("models") )
-		# echo("\n  (This may not mean they're unused)\n")
-		for o in unused:
-			echo( REPORT_OBJECT.format(o) )
-		echo( REPORT_COUNT.format(len(unused), "models"))
+	report_unused_files("model", unused)
+
+
+def validate_materials():
+	if args.defs: task("Checking material definitions... ")
+	else:         task("Checking material files... ")
+
+	files = parse_def_files("materials", ["*.mtr"])
+	if not check_any_found(files, "materials"): return
+
+	used = []
+	for map in map_parser.maps:
+		for e in map.entities:
+			used += e.materials
+
+	if args.defs:
+		unused = check_unused_defs_in(files, used, VALID_UNUSED_MATERIALS)
+		report_unused_definitions("materials", unused)
 	else:
-		echo(REPORT_OK)
+		unused = check_unused_files_in(files, used, VALID_UNUSED_MATERIALS)
+		report_unused_files("material", unused)
 
 
-def parse_defs(dirname, file_filters, prefix="", line_pattern=""):
-	files = get_included_files_in_dir(dirname, file_filters)
+def validate_skins():
+	if args.defs: task("Checking skin definitions... ")
+	else:         task("Checking skin files... ")
+
+	files = parse_def_files("skins", ["*.skin"])
+	if not check_any_found(files, "skins"):	return
+
+	used = get_property_values("skin")
+	if args.defs:
+		unused = check_unused_defs_in(files, used)
+		report_unused_definitions("skins", unused)
+	else:
+		unused = check_unused_files_in(files, used)
+		report_unused_files("skin", unused)
+
+
+def validate_particles():
+	if args.defs: task("Checking particle definitions... ")
+	else:         task("Checking particle files... ")
+
+	files = parse_def_files("particles", ["*.prt"])
+	if not check_any_found(files, "particles"): return
+
+	used = get_property_values("model", ["*.prt"])
+	if args.defs:
+		unused = check_unused_defs_in(files, used)
+		report_unused_definitions("particles", unused)
+	else:
+		unused = check_unused_files_in(files, used)
+		report_unused_files("particle", unused)
+
+
+def validate_xdata():
+	if args.defs: task("Checking xdata definitions... ")
+	else:         task("Checking xdata files... ")
+
+	# TODO: are all the user xdata prefixed as "readables/"?
+	files = parse_def_files("xdata", ["*.xd"])#, match_pattern="readables/*")
+	if not check_any_found(files, "xdata"):	return
+
+	valid_unused_defs = []
+	for map_name in mission.map_names:
+		valid_unused_defs.append(f"maps/{map_name}/mission_briefing")
+
+	used = get_property_values("xdata_contents")
+
+	if args.defs:
+		unused = check_unused_defs_in(files, used, valid_unused_defs, VALID_UNUSED_XDATA_FILES)
+		report_unused_definitions("xdata", unused)
+	else:
+		unused = check_unused_files_in(files, used, valid_unused_defs, VALID_UNUSED_XDATA_FILES)
+		report_unused_files("xdata", unused)
+
+
+
+def parse_entities():
+	files = get_included_files_in_dir("def", ["*.def"])
 	defs = []
 	for path in files:
 		scope_level = 0
@@ -462,149 +678,29 @@ def parse_defs(dirname, file_filters, prefix="", line_pattern=""):
 			for line in file:
 				line = line.replace('\n', '').replace('\t', '')
 				if line == "": continue
-
-				line_start = line[0]
-
-				if   line_start == '{': scope_level += 1
-				elif line_start == '}': scope_level -= 1
-				elif line_start == '/': continue
-				elif scope_level == 0:
-					if line_pattern and not fnmatch(line, line_pattern):
-						continue
-					if line.startswith(prefix):
-						line = line.split()[-1]
-					defs.append(line)
+				if not line.startswith("entityDef"): continue
+				defs.append(line.split()[1])
 	return defs
 
 
-def validate_materials():
-	task("Checking materials... ")
+def validate_entities():
+	task("Checking entities (experimental)... ")
 
-	mats = parse_defs("materials", ["*.mtr"])
-	unused = []
+	files = parse_def_files("def", ["*.def"], include_prefixes=["entityDef"])
+	if not check_any_found(files, "entities"):	return
 
-	if len(mats) == 0:
-		echo(" no custom materials found.")
-		return
-
-	used_materials = []
+	used = []
 	for map in map_parser.maps:
 		for e in map.entities:
-			used_materials += e.materials
+			used.append(e.classname)
 
-	for m in mats:
-		if not m in used_materials         \
-		and not m in VALID_UNUSED_MATERIALS:
-			unused.append(m)
-
-	if len(unused) > 0:
-		echo( REPORT_HEADER_NONL.format("materials") )
-		echo("  (This may not mean they're unused)\n")
-		for o in unused:
-			echo( REPORT_OBJECT.format(o) )
-		echo( REPORT_COUNT.format(len(unused), "materials"))
+	if args.defs:
+		unused = check_unused_defs_in(files, used)
+		report_unused_definitions("entities", unused)
 	else:
-		echo(REPORT_OK)
+		unused = check_unused_files_in(files, used)
+		report_unused_files("entity", unused)
 
-
-def parse_skins():
-	files = get_included_files_in_dir("skins", ["*.skin"])
-	defs = {}
-	for path in files:
-		scope_level = 0
-		defs[path] = []
-		with open(path, 'r') as file:
-			for line in file:
-				line = line.replace('\n', '').replace('\t', '')
-				if line == "": continue
-
-				line_start = line[0]
-
-				if   line_start == '{': scope_level += 1
-				elif line_start == '}': scope_level -= 1
-				elif line_start == '/': continue
-				elif scope_level == 0:
-					if line.startswith("skin"):
-						line = line.split()[-1]
-					defs[path].append(line)
-	return defs
-
-
-def validate_skins():
-	task("Checking skin files... ")
-
-	skins_dic = parse_skins() # don't use parse_defs, skins need to be separated by file
-	unused_files = []
-
-	if len(skins_dic) == 0:
-		echo(" no custom skins found.")
-		return
-
-	used_skins = get_property_values("skin")
-
-	# Don't report unused individual skins, report files with no skins used
-	# (a file may bundle skins that are not all in use)
-	for filepath in skins_dic:
-		skins_list = skins_dic[filepath]
-		num_unused = 0
-		for skin in skins_list:
-			if not skin in used_skins:
-		 		num_unused += 1
-		if num_unused == len(skins_list):
-		 	unused_files.append(filepath.replace(mission.path, '')[1:])
-
-	if len(unused_files) > 0:
-		echo("\n\n  Some skin files have no skins found in the maps\n")
-		for f in unused_files:
-			echo( REPORT_OBJECT.format(f) )
-		echo( REPORT_COUNT.format(len(unused_files), "skin files"))
-	else:
-		echo(REPORT_OK)
-
-
-
-
-
-def get_property_values(prop_name, patterns=[]):
-	props = []
-
-	for map in map_parser.maps:
-		for e in map.entities:
-			if not prop_name in e.properties: continue
-			if not patterns:
-				props.append(e.properties[prop_name])
-			else:
-				prop_val = e.properties[prop_name]
-				for p in patterns:
-					if fnmatch(prop_val, p):
-						props.append(prop_val)
-						break
-	return props
-
-
-def validate_particles():
-	task("Checking particles... ")
-
-	particles = parse_defs("particles", ["*.prt"], prefix="particle")
-	unused = []
-
-	if len(particles) == 0:
-		echo(" no custom particles found.")
-		return
-
-	used_particles = get_property_values("model", ["*.prt"])
-	for p in particles:
-		if not p in used_particles:
-			unused.append(p)
-
-	if len(unused) > 0:
-		echo( REPORT_HEADER_NONL.format("particles") )
-		# echo("  (This may not mean they're unused)\n")
-		for p in unused:
-			echo( REPORT_OBJECT.format(p) )
-		echo( REPORT_COUNT.format(len(unused), "particles"))
-	else:
-		echo(REPORT_OK)
 
 
 # TODO
@@ -649,77 +745,7 @@ def validate_files():
 		echo(REPORT_OK)
 
 
-def parse_entities():
-	files = get_included_files_in_dir("def", ["*.def"])
-	defs = []
-	for path in files:
-		scope_level = 0
-		with open(path, 'r') as file:
-			for line in file:
-				line = line.replace('\n', '').replace('\t', '')
-				if line == "": continue
-				if not line.startswith("entityDef"): continue
-				defs.append(line.split()[1])
-	return defs
 
-
-def validate_entities():
-	task("Checking entities (experimental)... ")
-
-	defs = parse_entities()
-	unused = []
-
-	if len(defs) == 0:
-		echo(" no custom entities found.")
-		return
-
-	used_entities = [] #= get_property_values("model", ["*.prt"])
-
-	for map in map_parser.maps:
-		for e in map.entities:
-			if e.classname in defs:
-				used_entities.append(e.classname)
-
-	# for e in used_entities:
-	# 	print(e)
-
-	for d in defs:
-		if not d in used_entities:
-			unused.append(d)
-
-	if len(unused) > 0:
-		echo( REPORT_HEADER_NONL.format("entities") )
-		# echo("  (This may not mean they're unused)\n")
-		for p in unused:
-			echo( REPORT_OBJECT.format(p) )
-		echo( REPORT_COUNT.format(len(unused), "entities"))
-	else:
-		echo(REPORT_OK)
-
-
-def validate_xdata():
-	task("Checking xdata files... ")
-
-	defs = parse_defs("xdata", ["*.xd"], line_pattern="readables/*")
-	unused = []
-
-	if len(defs) == 0:
-		echo(" no xdata found.")
-		return
-
-	used_xdata = get_property_values("xdata_contents", [])
-	for d in defs:
-		if not d in used_xdata:
-			unused.append(d)
-
-	if len(unused) > 0:
-		echo( REPORT_HEADER_NONL.format("xdata") )
-		# echo("  (This may not mean they're unused)\n")
-		for p in unused:
-			echo( REPORT_OBJECT.format(p) )
-		echo( REPORT_COUNT.format(len(unused), "xdata"))
-	else:
-		echo(REPORT_OK)
 
 
 check_params = "[\n  all, paths, files, models, materials, skins, particles,\n  entities, xdata\n]"
@@ -747,15 +773,15 @@ _validate_funcs = {
 }
 
 
-def validate_mission_files(arg):
-	if not arg in ["paths", "files"]:
+def validate_mission_files():
+	if not args.check in ["paths", "files"]:
 		parse_maps()
 
-	if arg == "all":
+	if args.check == "all":
 		for string in VALIDATION_PARAMS:
 			_validate_funcs[string]()
 	else:
-		_validate_funcs[arg]()
+		_validate_funcs[args.check]()
 
 
 def get_entities_named(entities, name):
@@ -836,17 +862,18 @@ def validate_ents_and_props2(ents, props):
 
 	return invalid_entities
 
-def check_entity_properties(check_args):
+
+def check_entity_properties():
 	parse_maps()
 
-	args = check_args.replace(', ', ',').split(',')
-	ident_params = args[0].split(' ')
+	params = args.check.replace(', ', ',').split(',')
+	ident_params = params[0].split(' ')
 	if len(ident_params) != 2:
 		error(f"invalid argument '{','.join(ident_params)}' for entity checking")
 
 	attr = ident_params[0]
 	ident = ident_params[1]
-	props = [ args[i].split(' ') for i in range(1, len(args)) ]
+	props = [ params[i].split(' ') for i in range(1, len(params)) ]
 
 	for i in range(len(map_parser.maps)):
 		map = map_parser.maps[i]
@@ -1024,7 +1051,7 @@ class MapParser:
 		self.curr_map = MapData()
 		self.maps.append(self.curr_map)
 
-		if show_map_parsing_messages: task(f"    '{os.path.basename(map_file)}'...")
+		if args.verbose: task(f"    '{os.path.basename(map_file)}'...")
 
 		t1 = time.time()
 		with open(map_file, 'r') as file:
@@ -1066,7 +1093,7 @@ class MapParser:
 
 		t2 = time.time()
 		total_time = "{:.1f}".format(t2-t1)
-		if show_map_parsing_messages: echo(f" ({total_time} secs)\n")
+		if args.verbose: echo(f" ({total_time} secs)\n")
 
 		assert(self.scope      == Scope.File)
 		assert(self.curr_prop       == None)
@@ -1074,6 +1101,11 @@ class MapParser:
 		assert(self.curr_brush == None)
 		assert(self.curr_patch == None)
 
+		# add the materials under the "texture" properties
+		# that weren't detected during parsing
+		for e in self.curr_map.entities:
+			if "texture" in e.properties:
+				e.materials.add(e.properties["texture"])
 
 
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
@@ -1106,28 +1138,30 @@ if __name__ == "__main__":
 				"Eg: \"_docs/, test_, .blend\"\n\n"
 				)
 
+	parser.add_argument("-v", "--verbose", action="store_true", help="show more information during the process.")
+
 	parser.add_argument("--pkget", action="store_true",
 		help= "outputs the .pkignore content as csv filters\n\n")
 
-	parser.add_argument("-i", "--included", type=str, const='.', nargs='?', metavar="path",
-		help=\
-				"list files to include in pk4 within 'path' without packing\n"
-				"them, where 'path' is a relative path (if ommitted, the\n"
-				"mission path is used)\n\n"
+	parser.add_argument("-li", "--list_included", type=str, const='.', nargs='?', metavar="path",
+		help= \
+				"list files to include in pk4 within 'path' without packing,\n"
+				"where 'path' is a relative path, and if ommitted, the\n"
+				"mission path is used\n\n"
 	)
-	parser.add_argument("-e", "--excluded", type=str, const='.', nargs='?', metavar="path",
-		help=\
-				"list files to exclude from pk4 within 'path' without packing\n"
-				"them, where 'path' is a relative path (if ommitted, the\n"
-				"mission path is used)\n\n"
+	parser.add_argument("-le", "--list_excluded", type=str, const='.', nargs='?', metavar="path",
+		help= \
+				"list files to exclude from pk4 within 'path' without packing,\n"
+				"where 'path' is a relative path, and if ommitted, the\n"
+				"mission path is used\n\n"
 	)
 
 	parser.add_argument("-c", "--check", type=str, metavar = "[params]",
-		help=\
+		help= \
 				"check for unused or problematic files or entity values.\n"
 				"To check files, you can use one of\n"
 				f"{check_params}\n"
-				"Use 'all' to perform all files related checks at once.\n\n"
+				"Use 'all' to perform all file-related checks at once.\n\n"
 
 				"To find entities that don't match the given values,\n"
 				"provide a comma-separated string argument with <name ...>\n"
@@ -1135,7 +1169,12 @@ if __name__ == "__main__":
 				"E.g. \"name *key*, nodrop 0, inv_droppable 1\".\n\n"
 				"Using a '?' in place of a value will report all entities\n"
 				"containing that property, regardless of its value.\n\n"
+	)
 
+	parser.add_argument("-d", "--defs", default=False, action="store_true",
+		help= \
+				"when looking up definitions (eg '-c skins'), report individual\n"
+				"unused definitions, instead of files with no used definitions.\n\n"
 	)
 
 	args = parser.parse_args()
@@ -1167,17 +1206,17 @@ if __name__ == "__main__":
 
 	if args.check:
 		if args.check in ["all"] + VALIDATION_PARAMS:
-			validate_mission_files(args.check)
+			validate_mission_files()
 		else:
-			check_entity_properties(args.check)
+			check_entity_properties()
 		# else:
 		# 	echo("wrong params for check - TODO proper error message")
 			# arg_parser.py: error: argument -c/--check: invalid choice: 'derp' (choose from 'foo', 'bar')
 		exit()
 
 
-	if   args.included: check_files(args.included, mission.included, "Included files")
-	elif args.excluded: check_files(args.excluded, mission.excluded, "Excluded files")
-	else:               pack_fm()
+	if   args.list_included: check_files(args.list_included, mission.included, "Included files")
+	elif args.list_excluded: check_files(args.list_excluded, mission.excluded, "Excluded files")
+	else:                    pack_fm()
 
 
