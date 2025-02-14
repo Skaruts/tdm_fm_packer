@@ -405,9 +405,10 @@ def report_unused_definitions(name, unused):
 		echo(REPORT_OK)
 
 
-def report_unused_files(name, unused):
+def report_unused_files(name, unused, plural=None, header=None):
+	header = header or f"\n\n  Some files have zero {plural or name} in use\n"
 	if len(unused) > 0:
-		echo(f"\n\n  Some {name} files have zero {name}s in use\n")
+		echo(header)
 		for f in unused:
 			echo( REPORT_OBJECT.format(f) )
 		echo( REPORT_COUNT.format(len(unused), f"{name} files"))
@@ -591,7 +592,7 @@ def validate_models():
 	used = get_property_values("model")
 	unused = check_unused_files_in(files, used)
 
-	report_unused_files("model", unused)
+	report_unused_files("model", unused, "models", REPORT_HEADER.format("models"))
 
 
 def validate_materials():
@@ -611,7 +612,7 @@ def validate_materials():
 		report_unused_definitions("materials", unused)
 	else:
 		unused = check_unused_files_in(files, used, VALID_UNUSED_MATERIALS)
-		report_unused_files("material", unused)
+		report_unused_files("material", unused, "materials")
 
 
 def validate_skins():
@@ -627,7 +628,7 @@ def validate_skins():
 		report_unused_definitions("skins", unused)
 	else:
 		unused = check_unused_files_in(files, used)
-		report_unused_files("skin", unused)
+		report_unused_files("skin", unused, "skins")
 
 
 def validate_particles():
@@ -643,7 +644,7 @@ def validate_particles():
 		report_unused_definitions("particles", unused)
 	else:
 		unused = check_unused_files_in(files, used)
-		report_unused_files("particle", unused)
+		report_unused_files("particle", unused, "particles")
 
 
 def validate_xdata():
@@ -699,7 +700,7 @@ def validate_entities():
 		report_unused_definitions("entities", unused)
 	else:
 		unused = check_unused_files_in(files, used)
-		report_unused_files("entity", unused)
+		report_unused_files("entity", unused, "entities")
 
 
 
