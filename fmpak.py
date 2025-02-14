@@ -47,7 +47,7 @@ MODFILE_FILENAME     = "darkmod.txt"
 README_FILENAME      = "readme.txt"
 STARTMAP_FILENAME    = "startingmap.txt"
 MAPSEQUENCE_FILENAME = "tdm_mapsequence.txt"
-BRIEFING_FILENAME    = "xdata/briefing.xd"
+# BRIEFING_FILENAME    = "xdata/briefing.xd"
 
 # make sure to exclude any meta stuff
 ignored_folders = set(["savegames", "__pycache__", ".git"])
@@ -719,7 +719,7 @@ def validate_files():
 		MODFILE_FILENAME,
 		README_FILENAME,
 		STARTMAP_FILENAME,
-		BRIEFING_FILENAME,
+		# BRIEFING_FILENAME,	# this may not be used
 	]
 
 	missing_files = [ f
