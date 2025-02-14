@@ -57,19 +57,22 @@ Some files and folders are automatically excluded by the script:
 - #### `--version`
 	Displays the version of the FM Packer
 
-- #### `-i | --included [path]`
+- #### `-v | --verbose`
+	Display more information, if applicable.
+
+- #### `-li | --list_included [path]`
 	List files that will be included in the pk4 without packing them, which can be useful to check if the filters are correct.
 	```
-	fmpak.py . -i
+	fmpak.py . -li
 	```
 	You can also specify a relative path, to list only the files inside it:
 	```
-	fmpak.py . -i guis/assets
+	fmpak.py . -li guis/assets
 	```
-- #### `-e | --excluded [path]`
+- #### `-le | --list_excluded [path]`
 	List files that will be included in the pk4 without packing them, which can be useful to check if the filters are correct.
 
-	Works the same way as `--included`.
+	Works the same way as `--list_included`.
 
 - #### `--pkset`
 	Creates a .pkignore file with the given comma- or space-separated filters - may be needed to enclose them in quotes.
@@ -83,6 +86,9 @@ Some files and folders are automatically excluded by the script:
 	```
 
 ### Checking Files / Entities
+
+- ### `-d | --defs`
+	Modifier for the checks below, to make them report individual definitions that are unused, instead of files containing no used definitions.
 
 - #### `-c | --check`
 	This option has two main uses:
