@@ -19,7 +19,7 @@ from fnmatch import fnmatch
 echo = print  # just to differentiate from debug prints
 
 
-VERSION = "0.7.1"
+VERSION = "0.7.2"
 
 VALID_MODEL_FORMATS = ["*.ase", "*.lwo", "*.obj"]  # TODO: is obj ever used?
 
