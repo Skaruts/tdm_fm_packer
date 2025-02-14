@@ -501,7 +501,11 @@ def check_files(arg, file_group, header):
 	for f in file_group.files:
 		if abspath in f.fullpath:
 			num_files += 1
-			echo(f"    {f.fullpath.replace(abspath , '')[1:]}")
+			path :str = f.fullpath.replace(abspath , '')[1:]
+			# path = path.encode(encoding="utf-8", errors="replace")
+			# path = path.decode()
+			echo(f"    {path}")
+
 
 	if is_root: echo(f"\n       {file_group.file_count} files")
 	else:       echo(f"\n       {num_files}/{file_group.file_count} files")
@@ -1211,8 +1215,8 @@ if __name__ == "__main__":
 		exit()
 
 
-	if   args.included: check_files(args.included, mission.included, "Included files")
-	elif args.excluded: check_files(args.excluded, mission.excluded, "Excluded files")
-	else:               pack_fm()
+	if   args.list_included: check_files(args.list_included, mission.included, "Included files")
+	elif args.list_excluded: check_files(args.list_excluded, mission.excluded, "Excluded files")
+	else:                    pack_fm()
 
 
